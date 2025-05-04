@@ -1,5 +1,6 @@
 package com.example.myapplication
 
+import androidx.compose.ui.text.font.FontFamily
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -55,43 +56,47 @@ class MainMenu : ComponentActivity() {
 fun DishCard(dish: Dish, onCardClick: (Dish) -> Unit = {}) {
     Card(
         modifier = Modifier
-            .padding(horizontal = 4.dp, vertical = 8.dp),
-        shape = RoundedCornerShape(10.dp),
+            .padding(horizontal = 4.dp, vertical = 4.dp) // Уменьшим вертикальные и горизонтальные отступы карточки
+            .shadow(elevation = 4.dp, shape = RoundedCornerShape(12.dp)), // Добавим легкую тень
+        shape = RoundedCornerShape(12.dp), // Сделаем углы чуть более скругленными
         onClick = { onCardClick(dish) },
         colors = CardDefaults.cardColors(
-            containerColor = Color.White
+            containerColor = Color.White // Фон карточки белый
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp) // Тень задали выше модификатором shadow
     ) {
         Column {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(150.dp)
+                    .height(180.dp) // Увеличим высоту изображения для большей картинки
             ) {
                 Image(
                     painter = painterResource(id = dish.imageResId),
                     contentDescription = dish.name,
                     modifier = Modifier
-                        .clip(RoundedCornerShape(topStart = 10.dp, topEnd = 10.dp)),
+                        .clip(RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp)) // Скругляем только верхние углы изображения
+                        .fillMaxWidth()
+                        .height(180.dp), // Высота изображения
                     contentScale = ContentScale.Crop
                 )
 
                 if (dish.isNew) {
                     Surface(
-                        color = Color(0xFFE0B0FF), // Фон метки "Новинка"
+                        color = Color(0xFFF3E5F5), // Светло-пурпурный фон метки
                         shape = RoundedCornerShape(bottomEnd = 8.dp),
                         modifier = Modifier
                             .align(Alignment.TopStart)
                     ) {
                         Text(
                             text = "НОВИНКА",
-                            color = Color.Black,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
+                            color = Color.Black, // Цвет текста черный
+                            fontSize = 9.sp, // Уменьшим размер шрифта метки
+                            fontWeight = FontWeight.SemiBold, // Полужирное начертание
+                            fontFamily = Montserrat, // Применяем шрифт Montserrat
                             modifier = Modifier.padding(
-                                horizontal = 6.dp,
-                                vertical = 2.dp
+                                horizontal = 6.dp, // Уменьшим горизонтальные отступы метки
+                                vertical = 3.dp // Уменьшим вертикальные отступы метки
                             )
                         )
                     }
@@ -101,51 +106,57 @@ fun DishCard(dish: Dish, onCardClick: (Dish) -> Unit = {}) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 8.dp)
+                    .padding(horizontal = 8.dp, vertical = 6.dp) // Уменьшим горизонтальные и вертикальные отступы в текстовом блоке
             ) {
                 Text(
                     text = dish.name,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 16.sp,
-                    color = MaterialTheme.colorScheme.onSurface
+                    fontSize = 13.sp, // Уменьшим размер шрифта для названия
+                    fontWeight = FontWeight.Medium,
+                    fontFamily = Montserrat, // Применяем шрифт Montserrat
+                    color = MaterialTheme.colorScheme.onSurface // Цвет текста
                 )
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(1.dp)) // Уменьшим отступ после названия
                 Text(
                     text = dish.portion + " г.",
-                    fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    fontSize = 11.sp, // Уменьшим размер шрифта для порции
+                    fontWeight = FontWeight.Normal,
+                    fontFamily = Montserrat, // Применяем шрифт Montserrat
+                    color = MaterialTheme.colorScheme.onSurfaceVariant // Цвет текста серый
                 )
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(2.dp)) // Уменьшим отступ после порции
                 Text(
                     text = dish.description,
-                    fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 11.sp, // Уменьшим размер шрифта для описания
+                    fontWeight = FontWeight.Normal,
+                    fontFamily = Montserrat, // Применяем шрифт Montserrat
+                    color = MaterialTheme.colorScheme.onSurfaceVariant, // Цвет текста серый
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis
                 )
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(6.dp)) // Уменьшим отступ перед блоком с ценой
 
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(8.dp))
-                        .background(Color(0xFFF1F1F1))
-                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                        .background(Color(0xFFEEEEEE)) // Светло-серый фон
+                        .padding(horizontal = 8.dp, vertical = 6.dp), // Уменьшим отступы внутри блока с ценой
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
                         text = "от ${dish.cost}₽",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 14.sp,
-                        color = MaterialTheme.colorScheme.onSurface
+                        fontWeight = FontWeight.Bold, // Жирное начертание цены
+                        fontSize = 13.sp, // Уменьшим размер шрифта для цены
+                        fontFamily = Montserrat, // Применяем шрифт Montserrat
+                        color = MaterialTheme.colorScheme.onSurface // Цвет текста цены черный
                     )
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowForward,
                         contentDescription = "Перейти к блюду ${dish.name}",
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(20.dp)
+                        tint = MaterialTheme.colorScheme.primary, // Цвет стрелки
+                        modifier = Modifier.size(20.dp) // Уменьшим размер стрелки
                     )
                 }
             }
@@ -158,10 +169,10 @@ fun MainMenuScreen() {
     val singleDish = Dish(
         id = 1,
         name = "Шашлык к пиву",
-        description = "Ехала ехала",
+        description = "Ехала ехалафффффффффффффффффффффффффффффффффффффффффффффффффффффффффффффффффффффффффффффффффффффффффффффффффффффффффффффффффффффффффффффффффффффффффффффффффффффффффф",
         portion = "400",
         cost = 300,
-        imageResId = R.drawable.shahlisk,
+        imageResId = R.drawable.shahlisk, // Убедитесь, что у вас есть ресурс R.drawable.shahlisk
         isNew = true
     )
     val dishesList = List(18) { index ->
@@ -173,26 +184,26 @@ fun MainMenuScreen() {
         modifier = Modifier
             .fillMaxSize()
             .background(Color(255, 255, 255)),
-        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp), // Уменьшим общий отступ сетки
+        horizontalArrangement = Arrangement.spacedBy(4.dp), // Уменьшим горизонтальный отступ между карточками
+        verticalArrangement = Arrangement.spacedBy(4.dp), // Уменьшим вертикальный отступ между карточками
     ) {
         // Header items
         item(span = { GridItemSpan(maxLineSpan) }) {
             Column(modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 16.dp)
+                .padding(horizontal = 8.dp, vertical = 8.dp)
             ) {
                 Text(
                     text = "Доставим сюда:",
-                    fontSize = 16.sp,
+                    fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = "улица Студенческая, 26",
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Thin,
                     color = MaterialTheme.colorScheme.onSurface
                 )
             }
@@ -200,11 +211,11 @@ fun MainMenuScreen() {
 
         item(span = { GridItemSpan(maxLineSpan) }) {
             Text(
-                text = "Новинки",
+                text = "Рекомендуем",
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(8.dp,8.dp),
-                style = MaterialTheme.typography.headlineSmall
+                style = MaterialTheme.typography.headlineSmall // Можно оставить стандартный размер для заголовка секции
             )
         }
 

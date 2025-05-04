@@ -40,6 +40,7 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.colorspace.Rgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
@@ -53,8 +54,20 @@ import com.example.myapplication.ui.theme.MyApplicationTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.IOException
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+
 
 class MainViewModel : ViewModel()
+
+// Определите семейство шрифтов Montserrat
+val Montserrat = FontFamily(
+    Font(R.font.regular, FontWeight.Normal), // Связываем файл с начертанием Normal
+    Font(R.font.bold, FontWeight.Bold),       // Связываем файл с начертанием Bold
+    // Добавьте другие начертания, если вы добавили соответствующие файлы
+    // Font(R.font.montserrat_medium, FontWeight.Medium),
+    // Font(R.font.montserrat_semibold, FontWeight.SemiBold)
+)
 
 
 class MainActivity : ComponentActivity() {
@@ -83,7 +96,7 @@ fun MainScreen() {
         bottomBar = {
             BottomAppBar(
                 modifier = Modifier
-                    .height(100.dp),
+                    .height(65.dp),
                 containerColor = Color(red = 241, green = 241, blue = 241),
                 contentColor = Color.Black
             ) {
@@ -96,20 +109,26 @@ fun MainScreen() {
                     NavigationItem.Third
                 )
                 Row(modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 25.dp),
+                    .fillMaxSize(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
 
                 ){
                     items.forEachIndexed { index, item ->
                         NavigationBarItem(
+                            colors = NavigationBarItemDefaults.colors(
+                                unselectedTextColor = Color.Transparent,
+                                selectedTextColor = Color.Transparent,
+                                unselectedIconColor = Color.Gray,
+                                selectedIconColor = Color.Black,
+                                indicatorColor = Color.Transparent,
+                            ),
                             icon = {
                                 if (index == 0) {
                                     Icon(
                                         modifier = Modifier
                                             .alignByBaseline()
-                                            .size(30.dp),
+                                            .size(20.dp),
                                         painter = painterResource(id = R.drawable.swaga),
                                         contentDescription = "Описание иконки"
                                     )
@@ -119,7 +138,7 @@ fun MainScreen() {
                                         imageVector = Icons.Rounded.AccountCircle,
                                         contentDescription = "Swag",
                                         modifier = Modifier
-                                            .size(33.dp)
+                                            .size(25.dp)
                                     )
                                 }
                                 if (index == 2) {
@@ -127,7 +146,7 @@ fun MainScreen() {
                                         imageVector = Icons.Rounded.Menu,
                                         contentDescription = "Swag",
                                         modifier = Modifier
-                                            .size(33.dp)
+                                            .size(25.dp)
                                     )
                                 }
                             },
