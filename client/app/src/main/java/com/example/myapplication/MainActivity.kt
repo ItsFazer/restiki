@@ -134,18 +134,13 @@ fun MainScreen() {
                             selected = currentRoute == item.route,
                             onClick = {
                                 navController.navigate(item.route) {
-                                    // Pop up to the start destination of the graph to
-                                    // avoid building up a large stack of destinations
-                                    // on the back stack as users select items
                                     navController.graph.startDestinationRoute?.let { route ->
                                         popUpTo(route) {
                                             saveState = true
                                         }
                                     }
-                                    // Avoid multiple copies of the same destination when
-                                    // reselecting the same item
+
                                     launchSingleTop = true
-                                    // Restore state when reselecting a previously selected item
                                     restoreState = true
                                 }
                                 selectedItem = index
@@ -167,18 +162,16 @@ fun MainScreen() {
 
 @Composable
 fun MainComposable() {
-    Column(modifier = Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) { Text("Main Screen") }
+    MainMenuScreen()
 }
 
 @Composable
 fun SecondComposable() {
-    Column(modifier = Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) { Text("Second Screen") }
 
 }
 
 @Composable
 fun ThirdComposable() {
-    Column(modifier = Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) { Text("Third Screen") }
 }
 
 sealed class NavigationItem(var route: String, var icon: Int?, var title: String) {
