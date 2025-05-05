@@ -5,6 +5,8 @@ import android.graphics.ImageDecoder.decodeBitmap
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -96,7 +98,7 @@ fun MainScreen() {
         bottomBar = {
             BottomAppBar(
                 modifier = Modifier
-                    .height(65.dp),
+                    .height(45.dp),
                 containerColor = Color(red = 241, green = 241, blue = 241),
                 contentColor = Color.Black
             ) {
@@ -170,7 +172,15 @@ fun MainScreen() {
             }
         }
     ) { innerPadding ->
-        NavHost(navController, startDestination = NavigationItem.Main.route, Modifier.padding(innerPadding)) {
+        NavHost(
+            navController = navController,
+            startDestination = NavigationItem.Main.route,
+            modifier = Modifier.padding(innerPadding),
+            enterTransition = { EnterTransition.None },
+            exitTransition = { ExitTransition.None },
+            popEnterTransition = { EnterTransition.None },
+            popExitTransition = { ExitTransition.None }
+        ) {
             composable(NavigationItem.Main.route) { MainComposable() }
             composable(NavigationItem.Second.route) { SecondComposable() }
             composable(NavigationItem.Third.route) { ThirdComposable() }
@@ -186,7 +196,7 @@ fun MainComposable() {
 
 @Composable
 fun SecondComposable() {
-
+    ProfileScreenContent()
 }
 
 @Composable

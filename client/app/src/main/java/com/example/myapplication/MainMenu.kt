@@ -6,6 +6,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -40,6 +41,11 @@ data class Dish(
     val isNew: Boolean = false
 )
 
+// Предполагаем, что Montserrat FontFamily определен в другом файле и доступен
+// Если нет, убедитесь, что он определен или скопируйте его сюда.
+// val Montserrat = FontFamily(...)
+
+
 class MainMenu : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -53,23 +59,27 @@ class MainMenu : ComponentActivity() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DishCard(dish: Dish, onCardClick: (Dish) -> Unit = {}) {
+fun DishCard(
+    dish: Dish,
+    onPriceButtonClick: (Dish) -> Unit = {}, // Callback для клика по кнопке цены
+    onCardClick: (Dish) -> Unit = {} // Оставлен, но не используется, так как вся карта не кликабельна
+) {
+    // Удален Card onClick, так как кликабельна только кнопка цены
     Card(
         modifier = Modifier
-            .padding(horizontal = 4.dp, vertical = 4.dp) // Уменьшим вертикальные и горизонтальные отступы карточки
-            .shadow(elevation = 4.dp, shape = RoundedCornerShape(12.dp)), // Добавим легкую тень
+            .padding(horizontal = 4.dp, vertical = 4.dp), // Уменьшены отступы карточки
         shape = RoundedCornerShape(12.dp), // Сделаем углы чуть более скругленными
-        onClick = { onCardClick(dish) },
+        // Удален модификатор .shadow()
         colors = CardDefaults.cardColors(
             containerColor = Color.White // Фон карточки белый
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp) // Тень задали выше модификатором shadow
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp) // Убираем тень CardElevation
     ) {
         Column {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(180.dp) // Увеличим высоту изображения для большей картинки
+                    .height(180.dp) // Увеличена высота изображения
             ) {
                 Image(
                     painter = painterResource(id = dish.imageResId),
@@ -91,12 +101,12 @@ fun DishCard(dish: Dish, onCardClick: (Dish) -> Unit = {}) {
                         Text(
                             text = "НОВИНКА",
                             color = Color.Black, // Цвет текста черный
-                            fontSize = 9.sp, // Уменьшим размер шрифта метки
+                            fontSize = 9.sp, // Уменьшен размер шрифта метки
                             fontWeight = FontWeight.SemiBold, // Полужирное начертание
                             fontFamily = Montserrat, // Применяем шрифт Montserrat
                             modifier = Modifier.padding(
-                                horizontal = 6.dp, // Уменьшим горизонтальные отступы метки
-                                vertical = 3.dp // Уменьшим вертикальные отступы метки
+                                horizontal = 6.dp, // Уменьшены горизонтальные отступы метки
+                                vertical = 3.dp // Уменьшены вертикальные отступы метки
                             )
                         )
                     }
@@ -106,57 +116,65 @@ fun DishCard(dish: Dish, onCardClick: (Dish) -> Unit = {}) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 8.dp, vertical = 6.dp) // Уменьшим горизонтальные и вертикальные отступы в текстовом блоке
+                    .padding(horizontal = 8.dp, vertical = 6.dp) // Уменьшены отступы в текстовом блоке
             ) {
+                val textColor = Color(0xFF333333) // Темно-серый цвет для текста (можно использовать Color.Black)
+
                 Text(
                     text = dish.name,
-                    fontSize = 13.sp, // Уменьшим размер шрифта для названия
-                    fontWeight = FontWeight.Medium,
+                    fontSize = 12.sp, // Уменьшен размер шрифта для названия
+                    fontWeight = FontWeight.Normal, // Обычное начертание (можно сделать SemiBold для плотности)
                     fontFamily = Montserrat, // Применяем шрифт Montserrat
-                    color = MaterialTheme.colorScheme.onSurface // Цвет текста
+                    color = textColor,
+                    lineHeight = 18.sp
                 )
-                Spacer(modifier = Modifier.height(1.dp)) // Уменьшим отступ после названия
+                //Spacer(modifier = Modifier.height(1.dp)) // Уменьшаем отступ после названия
                 Text(
-                    text = dish.portion + " г.",
-                    fontSize = 11.sp, // Уменьшим размер шрифта для порции
-                    fontWeight = FontWeight.Normal,
+                    text = "${dish.portion} г.", // Добавим г. к порции
+                    fontSize = 8.sp, // Уменьшен размер шрифта
+                    fontWeight = FontWeight.Normal, // Обычное начертание
                     fontFamily = Montserrat, // Применяем шрифт Montserrat
-                    color = MaterialTheme.colorScheme.onSurfaceVariant // Цвет текста серый
+                    color = textColor,
+                    lineHeight = 12.sp
                 )
-                Spacer(modifier = Modifier.height(2.dp)) // Уменьшим отступ после порции
+                Spacer(modifier = Modifier.height(1.dp)) // Уменьшаем отступ после порции (было 2.dp)
                 Text(
                     text = dish.description,
-                    fontSize = 11.sp, // Уменьшим размер шрифта для описания
-                    fontWeight = FontWeight.Normal,
+                    fontSize = 8.sp, // Уменьшен размер шрифта
+                    fontWeight = FontWeight.Normal, // Обычное начертание
                     fontFamily = Montserrat, // Применяем шрифт Montserrat
-                    color = MaterialTheme.colorScheme.onSurfaceVariant, // Цвет текста серый
+                    color = textColor, // Применяем единый цвет
                     maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
+                    overflow = TextOverflow.Ellipsis,
+                    lineHeight = 12.sp
                 )
 
-                Spacer(modifier = Modifier.height(6.dp)) // Уменьшим отступ перед блоком с ценой
+                Spacer(modifier = Modifier.height(4.dp)) // Уменьшаем отступ перед блоком с ценой (было 6.dp)
 
+                // Кликабельный блок для цены и стрелки
                 Row(
                     modifier = Modifier
-                        .fillMaxWidth()
+                        // Удален .fillMaxWidth(), чтобы блок был по ширине содержимого
                         .clip(RoundedCornerShape(8.dp))
                         .background(Color(0xFFEEEEEE)) // Светло-серый фон
-                        .padding(horizontal = 8.dp, vertical = 6.dp), // Уменьшим отступы внутри блока с ценой
+                        .clickable { onPriceButtonClick(dish) } // Сделали блок кликабельным
+                        .padding(horizontal = 8.dp, vertical = 6.dp), // Отступы внутри кликабельного блока
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
                         text = "от ${dish.cost}₽",
-                        fontWeight = FontWeight.Bold, // Жирное начертание цены
-                        fontSize = 13.sp, // Уменьшим размер шрифта для цены
+                        fontWeight = FontWeight.Normal, // Обычное начертание цены
+                        fontSize = 12.sp, // Уменьшен размер шрифта для цены
                         fontFamily = Montserrat, // Применяем шрифт Montserrat
-                        color = MaterialTheme.colorScheme.onSurface // Цвет текста цены черный
+                        color = MaterialTheme.colorScheme.primary // Цвет цены - акцентный
                     )
+                    Spacer(modifier = Modifier.width(4.dp)) // Небольшой отступ между текстом и стрелкой
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowForward,
                         contentDescription = "Перейти к блюду ${dish.name}",
-                        tint = MaterialTheme.colorScheme.primary, // Цвет стрелки
-                        modifier = Modifier.size(20.dp) // Уменьшим размер стрелки
+                        tint = MaterialTheme.colorScheme.primary, // Цвет стрелки - акцентный
+                        modifier = Modifier.size(16.dp) // Уменьшен размер стрелки
                     )
                 }
             }
@@ -169,7 +187,7 @@ fun MainMenuScreen() {
     val singleDish = Dish(
         id = 1,
         name = "Шашлык к пиву",
-        description = "Ехала ехалафффффффффффффффффффффффффффффффффффффффффффффффффффффффффффффффффффффффффффффффффффффффффффффффффффффффффффффффффффффффффффффффффффффффффффффффффффффффффф",
+        description = "Очень вкусный шашлык, приготовленный по особому рецепту с дымком.",
         portion = "400",
         cost = 300,
         imageResId = R.drawable.shahlisk, // Убедитесь, что у вас есть ресурс R.drawable.shahlisk
@@ -184,9 +202,9 @@ fun MainMenuScreen() {
         modifier = Modifier
             .fillMaxSize()
             .background(Color(255, 255, 255)),
-        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp), // Уменьшим общий отступ сетки
-        horizontalArrangement = Arrangement.spacedBy(4.dp), // Уменьшим горизонтальный отступ между карточками
-        verticalArrangement = Arrangement.spacedBy(4.dp), // Уменьшим вертикальный отступ между карточками
+        //contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp), // Уменьшен общий отступ сетки
+        horizontalArrangement = Arrangement.spacedBy(0.dp), // Уменьшен горизонтальный отступ между карточками
+        verticalArrangement = Arrangement.spacedBy(0.dp), // Уменьшен вертикальный отступ между карточками
     ) {
         // Header items
         item(span = { GridItemSpan(maxLineSpan) }) {
@@ -204,7 +222,11 @@ fun MainMenuScreen() {
                     text = "улица Студенческая, 26",
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Thin,
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.clickable {
+                        // TODO: Обработка клика по адресу доставки
+                        println("Клик по адресу доставки")
+                    } // Сделали адрес кликабельным
                 )
             }
         }
@@ -221,16 +243,21 @@ fun MainMenuScreen() {
 
         // Dish items
         items(dishesList, key = { it.id }) { dish ->
-            DishCard(dish = dish) { clickedDish ->
-                println("Нажато на блюдо: ${clickedDish.name}")
-            }
+            DishCard(
+                dish = dish,
+                onPriceButtonClick = { clickedDish ->
+                    // TODO: Обработка клика по кнопке "от n рублей"
+                    println("Нажата кнопка цены для блюда: ${clickedDish.name}")
+                }
+                // onCardClick больше не используется, так как вся карта не кликабельна
+            )
         }
     }
 }
 
 @Preview(showBackground = true)
 @Composable
-fun DefaultPreview() {
+fun MainMenuPreview() { // Переименован Preview, если это файл MainMenu.kt
     MyApplicationTheme {
         MainMenuScreen()
     }
