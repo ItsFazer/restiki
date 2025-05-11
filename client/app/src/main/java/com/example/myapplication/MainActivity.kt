@@ -1,8 +1,8 @@
 package com.example.myapplication
 
 import android.content.pm.ActivityInfo
-import android.graphics.ImageDecoder.decodeBitmap
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.animation.EnterTransition
@@ -13,14 +13,10 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.paddingFrom
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.rounded.AccountCircle
-import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.Menu
-import androidx.compose.material.icons.rounded.ShoppingCart
 import androidx.compose.material3.BottomAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -29,7 +25,6 @@ import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -38,43 +33,91 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.colorspace.Rgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.Font
-import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.navigation.NavController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.example.myapplication.ui.theme.MyApplicationTheme
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
-import java.io.IOException
-import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontWeight
+import com.example.myapplication.MainMenuScreen
+import io.ktor.client.HttpClient
+import io.ktor.client.request.get
+import io.ktor.client.statement.HttpResponse
+import io.ktor.client.statement.bodyAsText
+import kotlinx.coroutines.launch
+import okhttp3.OkHttp
+import io.ktor.client.plugins.logging.LogLevel
+import io.ktor.client.plugins.logging.Logging
+import io.ktor.client.plugins.logging.Logger
 
-
-class MainViewModel : ViewModel()
-
-// Определите семейство шрифтов Montserrat
 val Montserrat = FontFamily(
-    Font(R.font.regular, FontWeight.Normal), // Связываем файл с начертанием Normal
-    Font(R.font.bold, FontWeight.Bold),       // Связываем файл с начертанием Bold
-    // Добавьте другие начертания, если вы добавили соответствующие файлы
-    // Font(R.font.montserrat_medium, FontWeight.Medium),
-    // Font(R.font.montserrat_semibold, FontWeight.SemiBold)
+    Font(R.font.regular, FontWeight.Normal),
+    Font(R.font.bold, FontWeight.Bold),
 )
 
+object MainViewModel : ViewModel() {
+
+    private val client = HttpClient() {
+        // Активируем плагин логирования Ktor
+        install(Logging) {
+            logger = object : Logger {
+                override fun log(message: String) {
+                    Log.d("KtorLogger", message) // Используем стандартный Android Log
+                }
+            }
+            level = LogLevel.ALL // Логировать всё: запросы, ответы, заголовки, тело и т.д.
+        }
+        // Здесь можно добавить другие конфигурации клиента
+        // Для автоматической обработки JSON (если вы будете получать JSON-объекты)
+        // install(io.ktor.client.plugins.contentnegotiation.ContentNegotiation) {
+        //    json(kotlinx.serialization.json.Json {
+        //        prettyPrint = true
+        //        isLenient = true
+        //        ignoreUnknownKeys = true
+        //    })
+        // }
+    }
+
+    fun fetchDishData() {
+        viewModelScope.launch {
+            try {
+                val url = "http://5.166.55.78:6567/dish"
+                Log.d("NetworkRequest", "Попытка получить данные с: $url")
+                val response: HttpResponse = client.get(url)
+
+                if (response.status.value == 200) {
+                    val responseBody = response.bodyAsText()
+                    Log.d("NetworkRequest", "Данные успешно получены (статус 200): $responseBody")
+                    // Заменил print(responseBody) на Log.d для лучшей практики логирования в Android
+                    // Log.d("NetworkRequestRawBody", responseBody) // Можно добавить, если нужно отдельно логировать только тело
+                } else {
+                    Log.e("NetworkRequest", "Ошибка получения данных: ${response.status.value} - ${response.status.description}")
+                }
+            } catch (e: Exception) {
+                Log.e("NetworkRequest", "Ошибка сетевого запроса: ${e.localizedMessage}", e)
+            }
+        }
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        client.close()
+        Log.d("NetworkRequest", "HttpClient закрыт.")
+    }
+}
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        MainViewModel.fetchDishData()
         this.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT)
         setContent {
             MyApplicationTheme {
@@ -83,7 +126,6 @@ class MainActivity : ComponentActivity() {
         }
     }
 }
-
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -98,7 +140,7 @@ fun MainScreen() {
         bottomBar = {
             BottomAppBar(
                 modifier = Modifier
-                    .height(45.dp),
+                    .height(55.dp),
                 containerColor = Color(red = 241, green = 241, blue = 241),
                 contentColor = Color.Black
             ) {
@@ -129,7 +171,6 @@ fun MainScreen() {
                                 if (index == 0) {
                                     Icon(
                                         modifier = Modifier
-                                            .alignByBaseline()
                                             .size(20.dp),
                                         painter = painterResource(id = R.drawable.swaga),
                                         contentDescription = "Описание иконки"
@@ -138,7 +179,7 @@ fun MainScreen() {
                                 if (index == 1) {
                                     Icon(
                                         imageVector = Icons.Rounded.AccountCircle,
-                                        contentDescription = "Swag",
+                                        contentDescription = "Профиль",
                                         modifier = Modifier
                                             .size(25.dp)
                                     )
@@ -146,7 +187,7 @@ fun MainScreen() {
                                 if (index == 2) {
                                     Icon(
                                         imageVector = Icons.Rounded.Menu,
-                                        contentDescription = "Swag",
+                                        contentDescription = "Меню",
                                         modifier = Modifier
                                             .size(25.dp)
                                     )
@@ -196,11 +237,24 @@ fun MainComposable() {
 
 @Composable
 fun SecondComposable() {
-    ProfileScreenContent()
+    Column(
+        modifier = Modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text("Профиль (заглушка)", fontFamily = Montserrat)
+    }
 }
 
 @Composable
 fun ThirdComposable() {
+    Column(
+        modifier = Modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text("Третий экран (заглушка)", fontFamily = Montserrat)
+    }
 }
 
 sealed class NavigationItem(var route: String, var icon: Int?, var title: String) {
@@ -208,4 +262,3 @@ sealed class NavigationItem(var route: String, var icon: Int?, var title: String
     object Second : NavigationItem("second", R.drawable.ic_launcher_foreground, "Second")
     object Third : NavigationItem("third", R.drawable.ic_launcher_foreground, "Third")
 }
-
