@@ -49,6 +49,7 @@ import androidx.navigation.compose.rememberNavController
 import com.example.myapplication.ui.theme.MyApplicationTheme
 import com.example.myapplication.MainMenuScreen
 import io.ktor.client.HttpClient
+import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.request.get
 import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsText
@@ -57,6 +58,7 @@ import okhttp3.OkHttp
 import io.ktor.client.plugins.logging.LogLevel
 import io.ktor.client.plugins.logging.Logging
 import io.ktor.client.plugins.logging.Logger
+import io.ktor.serialization.kotlinx.json.json
 
 val Montserrat = FontFamily(
     Font(R.font.regular, FontWeight.Normal),
@@ -65,7 +67,7 @@ val Montserrat = FontFamily(
 
 object MainViewModel : ViewModel() {
 
-    private val client = HttpClient() {
+    val client = HttpClient() {
         // Активируем плагин логирования Ktor
         install(Logging) {
             logger = object : Logger {
@@ -75,15 +77,9 @@ object MainViewModel : ViewModel() {
             }
             level = LogLevel.ALL // Логировать всё: запросы, ответы, заголовки, тело и т.д.
         }
-        // Здесь можно добавить другие конфигурации клиента
-        // Для автоматической обработки JSON (если вы будете получать JSON-объекты)
-        // install(io.ktor.client.plugins.contentnegotiation.ContentNegotiation) {
-        //    json(kotlinx.serialization.json.Json {
-        //        prettyPrint = true
-        //        isLenient = true
-        //        ignoreUnknownKeys = true
-        //    })
-        // }
+        install(ContentNegotiation) {
+            json()
+        }
     }
 
     fun fetchDishData() {
@@ -99,7 +95,10 @@ object MainViewModel : ViewModel() {
                     // Заменил print(responseBody) на Log.d для лучшей практики логирования в Android
                     // Log.d("NetworkRequestRawBody", responseBody) // Можно добавить, если нужно отдельно логировать только тело
                 } else {
-                    Log.e("NetworkRequest", "Ошибка получения данных: ${response.status.value} - ${response.status.description}")
+                    Log.e(
+                        "NetworkRequest",
+                        "Ошибка получения данных: ${response.status.value} - ${response.status.description}"
+                    )
                 }
             } catch (e: Exception) {
                 Log.e("NetworkRequest", "Ошибка сетевого запроса: ${e.localizedMessage}", e)
@@ -152,12 +151,13 @@ fun MainScreen() {
                     NavigationItem.Second,
                     NavigationItem.Third
                 )
-                Row(modifier = Modifier
-                    .fillMaxSize(),
+                Row(
+                    modifier = Modifier
+                        .fillMaxSize(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
 
-                ){
+                ) {
                     items.forEachIndexed { index, item ->
                         NavigationBarItem(
                             colors = NavigationBarItemDefaults.colors(

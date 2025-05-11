@@ -23,7 +23,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.painterResource // Might not be needed if only Coil is used
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -33,10 +33,16 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.rememberAsyncImagePainter
 import coil.request.ImageRequest
+import com.example.myapplication.MainViewModel.client // Assuming MainViewModel exists and client is public
 import com.example.myapplication.ui.theme.MyApplicationTheme
+import io.ktor.client.call.body
+import io.ktor.client.request.get
+import io.ktor.client.statement.HttpResponse
 import kotlinx.coroutines.launch
+import kotlinx.serialization.Serializable // Важно: убедитесь, что этот импорт есть
 
-// Data classes (Updated for consistency and imageUrl)
+// Data classes (Updated for consistency and imageUrl, added weight and isNew)
+@Serializable // <-- ДОБАВЛЕНО: Пометьте AddOn как сериализуемый
 data class AddOn(
     val id: Int,
     val name: String,
@@ -44,15 +50,17 @@ data class AddOn(
     var isSelected: Boolean = false // State for selection
 )
 
+@Serializable
 data class Dish(
     val id: Int,
     val name: String,
-    val weight: String, // Using 'weight' instead of 'portion' for consistency with DishDetailCard
-    val isNew: Boolean = false,
     val description: String,
-    val imageUrl: String?, // Using imageUrl
-    val basePrice: Double, // Using 'basePrice' instead of 'cost'
-    val addOns: List<AddOn> = emptyList()
+    val portion: Int, // 'portion' is used in sample data, but 'weight' in UI.
+    val cost: Int,
+    val tag: String,
+    val img: String, // Using imageUrl
+   //val addOns: List<AddOn> = emptyList(),
+    //val isNew: Boolean = true // <-- Добавлено
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -66,7 +74,7 @@ fun DishDetailCard(
     val scope = rememberCoroutineScope()
 
     // Manage selected add-ons within the sheet's state
-    var selectedAddOns by remember { mutableStateOf(dish.addOns.map { it.copy() }) }
+    //var selectedAddOns by remember { mutableStateOf(dish.addOns.map { it.copy() }) }
 
     ModalBottomSheet(
         sheetState = sheetState,
@@ -90,7 +98,7 @@ fun DishDetailCard(
                 }
 
                 // Dish Image
-                val imageModel = dish.imageUrl
+                val imageModel = dish.img
                 Image(
                     painter = rememberAsyncImagePainter(
                         ImageRequest.Builder(LocalContext.current)
@@ -98,6 +106,8 @@ fun DishDetailCard(
                             // Добавляем placeholder и error изображение для Coil
                             // Убедитесь, что у вас есть ресурс, например, R.drawable.placeholder_image
                             // Для демонстрации используем стандартную иконку лаунчера.
+                            // .placeholder(R.drawable.placeholder_image) // Пример
+                            // .error(R.drawable.error_image) // Пример
                             .build()
                     ),
                     contentDescription = dish.name,
@@ -121,7 +131,7 @@ fun DishDetailCard(
                 Spacer(modifier = Modifier.height(4.dp))
 
                 Text(
-                    text = "${dish.weight} г.", // Added ' г.' here for consistency
+                    text = "${dish.portion} г.", // Added ' г.' here for consistency
                     fontSize = 16.sp,
                     color = Color.Gray,
                     fontFamily = Montserrat, // Здесь используется Montserrat
@@ -130,19 +140,22 @@ fun DishDetailCard(
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                if (dish.isNew) {
-                    Text(
-                        text = "НОВИНКА",
-                        fontSize = 12.sp,
-                        fontFamily = Montserrat, // Здесь используется Montserrat
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White,
-                        modifier = Modifier
-                            .background(Color(0xFF8A2BE2), RoundedCornerShape(4.dp)) // Example color (purple)
-                            .padding(horizontal = 6.dp, vertical = 2.dp)
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                }
+//                if (dish.isNew) {
+//                    Text(
+//                        text = "НОВИНКА",
+//                        fontSize = 12.sp,
+//                        fontFamily = Montserrat, // Здесь используется Montserrat
+//                        fontWeight = FontWeight.Bold,
+//                        color = Color.White,
+//                        modifier = Modifier
+//                            .background(
+//                                Color(0xFF8A2BE2),
+//                                RoundedCornerShape(4.dp)
+//                            ) // Example color (purple)
+//                            .padding(horizontal = 6.dp, vertical = 2.dp)
+//                    )
+//                    Spacer(modifier = Modifier.height(8.dp))
+//                }
 
                 // Description (Added TextOverflow.Ellipsis if needed)
                 Text(
@@ -154,97 +167,96 @@ fun DishDetailCard(
                     overflow = TextOverflow.Ellipsis
                 )
 
-                if (dish.addOns.isNotEmpty()) {
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    // Add-ons section header
-                    Text(
-                        text = "Добавки несладкие", // Or dynamically set
-                        fontSize = 18.sp,
-                        fontFamily = Montserrat, // Здесь используется Montserrat
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    // Add-ons list
-                    Column {
-                        selectedAddOns.forEachIndexed { index, addOn ->
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable {
-                                        selectedAddOns = selectedAddOns.toMutableList().apply {
-                                            this[index] = addOn.copy(isSelected = !addOn.isSelected)
-                                        }
-                                    }
-                                    .padding(vertical = 8.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Column {
-                                    Text(
-                                        text = addOn.name,
-                                        fontSize = 16.sp,
-                                        fontFamily = Montserrat // Здесь используется Montserrat
-                                    )
-                                    Text(
-                                        text = "+${addOn.price.toInt()} ₽",
-                                        fontSize = 14.sp,
-                                        color = Color.Gray,
-                                        fontFamily = Montserrat // Здесь используется Montserrat
-                                    )
-                                }
-                                Checkbox(
-                                    checked = addOn.isSelected,
-                                    onCheckedChange = { isChecked ->
-                                        selectedAddOns = selectedAddOns.toMutableList().apply {
-                                            this[index] = addOn.copy(isSelected = isChecked)
-                                        }
-                                    },
-                                    colors = CheckboxDefaults.colors(checkedColor = Color.Black)
-                                )
-                            }
-                        }
-                    }
-                }
+//                if (dish.addOns.isNotEmpty()) {
+//                    Spacer(modifier = Modifier.height(16.dp))
+//
+//                    // Add-ons section header
+//                    Text(
+//                        text = "Добавки несладкие", // Or dynamically set
+//                        fontSize = 18.sp,
+//                        fontFamily = Montserrat, // Здесь используется Montserrat
+//                        fontWeight = FontWeight.Bold,
+//                        modifier = Modifier.fillMaxWidth()
+//                    )
+//
+//                    Spacer(modifier = Modifier.height(8.dp))
+//
+//                    // Add-ons list
+//                    Column {
+//                        selectedAddOns.forEachIndexed { index, addOn ->
+//                            Row(
+//                                modifier = Modifier
+//                                    .fillMaxWidth()
+//                                    .clickable {
+//                                        selectedAddOns = selectedAddOns.toMutableList().apply {
+//                                            this[index] = addOn.copy(isSelected = !addOn.isSelected)
+//                                        }
+//                                    }
+//                                    .padding(vertical = 8.dp),
+//                                verticalAlignment = Alignment.CenterVertically,
+//                                horizontalArrangement = Arrangement.SpaceBetween
+//                            ) {
+//                                Column {
+//                                    Text(
+//                                        text = addOn.name,
+//                                        fontSize = 16.sp,
+//                                        fontFamily = Montserrat // Здесь используется Montserrat
+//                                    )
+//                                    Text(
+//                                        text = "+${addOn.price.toInt()} ₽",
+//                                        fontSize = 14.sp,
+//                                        color = Color.Gray,
+//                                        fontFamily = Montserrat // Здесь используется Montserrat
+//                                    )
+//                                }
+//                                Checkbox(
+//                                    checked = addOn.isSelected,
+//                                    onCheckedChange = { isChecked ->
+//                                        selectedAddOns = selectedAddOns.toMutableList().apply {
+//                                            this[index] = addOn.copy(isSelected = isChecked)
+//                                        }
+//                                    },
+//                                    colors = CheckboxDefaults.colors(checkedColor = Color.Black)
+//                                )
+//                            }
+//                        }
+//                    }
+//                }
 
                 Spacer(modifier = Modifier.height(24.dp))
 
                 // Total price and Add to Cart button
-                val totalSum = dish.basePrice + selectedAddOns.filter { it.isSelected }.sumOf { it.price }
-
-                Button(
-                    onClick = {
-                        onAddToCart(dish, selectedAddOns.filter { it.isSelected })
-                        // Optionally close the sheet after adding to cart
-                        scope.launch { sheetState.hide() }.invokeOnCompletion {
-                            if (!sheetState.isVisible) {
-                                onDismiss() // Dismiss after animation
-                            }
-                        }
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(50.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFFA500)), // Example color (orange)
-                    shape = RoundedCornerShape(8.dp)
-                ) {
-                    Text(
-                        text = "${totalSum.toInt()} ₽",
-                        fontSize = 18.sp,
-                        fontFamily = Montserrat, // Здесь используется Montserrat
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
-                    )
+                val totalSum = dish.cost
+               // + selectedAddOns.filter { it.isSelected }.sumOf { it.price }
+//
+//                Button(
+//                    onClick = {
+//                        onAddToCart(dish, selectedAddOns.filter { it.isSelected })
+//                        // Optionally close the sheet after adding to cart
+//                        scope.launch { sheetState.hide() }.invokeOnCompletion {
+//                            if (!sheetState.isVisible) {
+//                                onDismiss() // Dismiss after animation
+//                            }
+//                        }
+//                    },
+//                    modifier = Modifier
+//                        .fillMaxWidth()
+//                        .height(50.dp),
+//                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFFA500)), // Example color (orange)
+//                    shape = RoundedCornerShape(8.dp)
+//                ) {
+//                    Text(
+//                        text = "${totalSum.toInt()} ₽",
+//                        fontSize = 18.sp,
+//                        fontFamily = Montserrat, // Здесь используется Montserrat
+//                        fontWeight = FontWeight.Bold,
+//                        color = Color.White
+//                    )
                 }
-            }
         }
     )
 }
 
-// Остальная часть кода (DishCard, MainMenuScreen, Preview) остается без изменений
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DishCard(
@@ -268,7 +280,7 @@ fun DishCard(
                     .height(180.dp)
             ) {
                 // Load image from URL using Coil, handle null URL
-                val imageModel = dish.imageUrl
+                val imageModel = dish.img
                 Image(
                     painter = rememberAsyncImagePainter(
                         ImageRequest.Builder(LocalContext.current)
@@ -276,6 +288,8 @@ fun DishCard(
                             // Добавляем placeholder и error изображение для Coil
                             // Убедитесь, что у вас есть ресурс, например, R.drawable.placeholder_image
                             // Для демонстрации используем стандартную иконку лаунчера.
+                            // .placeholder(R.drawable.placeholder_image) // Пример
+                            // .error(R.drawable.error_image) // Пример
                             .build()
                     ),
                     contentDescription = dish.name,
@@ -285,26 +299,26 @@ fun DishCard(
                     contentScale = ContentScale.Crop
                 )
 
-                if (dish.isNew) {
-                    Surface(
-                        color = Color(0xFFF3E5F5),
-                        shape = RoundedCornerShape(bottomEnd = 8.dp),
-                        modifier = Modifier
-                            .align(Alignment.TopStart)
-                    ) {
-                        Text(
-                            text = "НОВИНКА",
-                            color = Color.Black,
-                            fontSize = 9.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            fontFamily = Montserrat, // Здесь используется Montserrat
-                            modifier = Modifier.padding(
-                                horizontal = 6.dp,
-                                vertical = 3.dp
-                            )
-                        )
-                    }
-                }
+//                if (dish.isNew) {
+//                    Surface(
+//                        color = Color(0xFFF3E5F5),
+//                        shape = RoundedCornerShape(bottomEnd = 8.dp),
+//                        modifier = Modifier
+//                            .align(Alignment.TopStart)
+//                    ) {
+//                        Text(
+//                            text = "НОВИНКА",
+//                            color = Color.Black,
+//                            fontSize = 9.sp,
+//                            fontWeight = FontWeight.SemiBold,
+//                            fontFamily = Montserrat, // Здесь используется Montserrat
+//                            modifier = Modifier.padding(
+//                                horizontal = 6.dp,
+//                                vertical = 3.dp
+//                            )
+//                        )
+//                    }
+//                }
             }
 
             Column(
@@ -325,7 +339,7 @@ fun DishCard(
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
-                    text = "${dish.weight} г.",
+                    text = "${dish.portion} г.",
                     fontSize = 8.sp,
                     fontWeight = FontWeight.Normal,
                     fontFamily = Montserrat, // Здесь используется Montserrat
@@ -356,7 +370,7 @@ fun DishCard(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
-                        text = "от ${dish.basePrice.toInt()}₽", // Use basePrice
+                        text = "от ${dish.cost.toInt()}₽", // Use basePrice
                         fontWeight = FontWeight.Normal,
                         fontSize = 12.sp,
                         fontFamily = Montserrat, // Здесь используется Montserrat
@@ -381,57 +395,28 @@ fun MainMenuScreen() {
     var selectedDish: Dish? by remember { mutableStateOf(null) }
     val showDishDetailSheet by remember { derivedStateOf { selectedDish != null } }
 
-    // Sample data (replace with your actual data loading logic)
-    val sampleDishes = remember {
-        listOf(
-            Dish(
-                id = 1,
-                name = "Мафальдине болоньезе",
-                weight = "350",
-                isNew = true,
-                description = "Итальянская паста мафальдине в соусе Болоньезе, с вялеными томатами. Щедро посыпанная сыром пармезан.",
-                imageUrl = "https://bolshoy.rest/userfls/bg/shop/goods_list/2543_vozdushnyy-khumus.png?v4", // Пример URL
-                basePrice = 690.0,
-                addOns = listOf(
-                    AddOn(1, "Соус из печеного перца 50 г", 100.0),
-                    AddOn(2, "Авокадо", 200.0),
-                    AddOn(3, "Хлеб белый", 70.0)
-                )
-            ),
-            Dish(
-                id = 2,
-                name = "Шашлык к пиву",
-                weight = "400",
-                isNew = false,
-                description = "Очень вкусный шашлык, приготовленный по особому рецепту с дымком.",
-                imageUrl = "https://bolshoy.rest/userfls/bg/shop/goods_list/2224_mtsvadi-из-свинины-.jpg?v4", // Пример URL
-                basePrice = 300.0,
-                addOns = emptyList() // No add-ons for this dish
-            ),
-            Dish(
-                id = 3,
-                name = "Цезарь с курицей",
-                weight = "250",
-                isNew = true,
-                description = "Классический салат Цезарь с нежным куриным филе, гренками и соусом.",
-                imageUrl = "https://bolshoy.rest/userfls/bg/shop/goods_list/2224_mtsvadi-из-свинины-.jpg?v4", // Пример URL
-                basePrice = 450.0,
-                addOns = listOf(
-                    AddOn(4, "Дополнительная курица", 150.0),
-                    AddOn(5, "Анчоусы", 80.0)
-                )
-            ),
-            // Добавьте больше блюд здесь с реальными URL изображений
-        )
-    }
+    // State to hold the list of dishes fetched from the API
+    var dishesList by remember { mutableStateOf(emptyList<Dish>()) }
 
-    val dishesList = List(18) { index ->
-        // Пример генерации данных для сетки, используем данные из sampleDishes по кругу
-        sampleDishes[index % sampleDishes.size].copy(id = index + 100) // Уникальный ID
-    }
+    // Coroutine scope for launching suspend functions
+    val scope = rememberCoroutineScope()
 
-    val real_dishes_list = List(500) {
-        index: Int -> 
+    // Effect to fetch data when the Composable enters the composition
+    LaunchedEffect(Unit) {
+        try {
+            val response_dishes: HttpResponse = MainViewModel.client.get("http://5.166.55.78:6567/dish")
+            if (response_dishes.status.value == 200) {
+                val fetchedList = response_dishes.body<List<Dish>>()
+                dishesList = fetchedList // Update the state with fetched data
+            } else {
+                // Handle non-200 responses (e.g., show an error message)
+                println("Error fetching dishes: ${response_dishes.status.value}")
+            }
+        } catch (e: Exception) {
+            // Handle network or parsing errors
+            println("Exception during dish fetch: ${e.message}")
+            // Optionally, show a SnackBar or other UI feedback
+        }
     }
 
 
@@ -442,13 +427,20 @@ fun MainMenuScreen() {
             .background(Color(255, 255, 255)),
         horizontalArrangement = Arrangement.spacedBy(0.dp),
         verticalArrangement = Arrangement.spacedBy(0.dp),
-        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp) // Добавлен горизонтальный отступ для сетки
+        contentPadding = PaddingValues(
+            horizontal = 4.dp,
+            vertical = 0.dp
+        ) // Добавлен горизонтальный отступ для сетки
     ) {
         // Header items
         item(span = { GridItemSpan(maxLineSpan) }) {
-            Column(modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 8.dp) // Увеличиваем отступы для верхнего блока
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(
+                        horizontal = 8.dp,
+                        vertical = 8.dp
+                    ) // Увеличиваем отступы для верхнего блока
             ) {
                 Text(
                     text = "Доставим сюда:",
@@ -476,13 +468,16 @@ fun MainMenuScreen() {
                 text = "Рекомендуем",
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 8.dp, vertical = 8.dp), // Увеличиваем отступы для заголовка "Рекомендуем"
+                    .padding(
+                        horizontal = 8.dp,
+                        vertical = 8.dp
+                    ), // Увеличиваем отступы для заголовка "Рекомендуем"
                 style = MaterialTheme.typography.headlineSmall,
                 fontFamily = Montserrat // Здесь используется Montserrat
             )
         }
 
-        // Dish items
+        // Dish items - now using the fetched dishesList
         items(dishesList, key = { it.id }) { dish ->
             DishCard(
                 dish = dish,
@@ -507,6 +502,7 @@ fun MainMenuScreen() {
         }
     }
 }
+
 
 // Preview Composable (Optional)
 @Preview(showBackground = true)
