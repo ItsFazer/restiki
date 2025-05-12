@@ -1,6 +1,7 @@
 package com.example.myapplication
 
 import android.os.Bundle
+import android.util.Log // Импорт для Logcat
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.Image
@@ -23,7 +24,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource // Might not be needed if only Coil is used
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -39,15 +39,17 @@ import io.ktor.client.call.body
 import io.ktor.client.request.get
 import io.ktor.client.statement.HttpResponse
 import kotlinx.coroutines.launch
-import kotlinx.serialization.Serializable // Важно: убедитесь, что этот импорт есть
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.SerializationException
+import java.io.IOException
 
-// Data classes (Updated for consistency and imageUrl, added weight and isNew)
-@Serializable // <-- ДОБАВЛЕНО: Пометьте AddOn как сериализуемый
+// Data classes
+@Serializable
 data class AddOn(
     val id: Int,
     val name: String,
     val price: Double,
-    var isSelected: Boolean = false // State for selection
+    var isSelected: Boolean = false
 )
 
 @Serializable
@@ -55,31 +57,34 @@ data class Dish(
     val id: Int,
     val name: String,
     val description: String,
-    val portion: Int, // 'portion' is used in sample data, but 'weight' in UI.
+    val portion: Int,
     val cost: Int,
-    val tag: String,
-    val img: String, // Using imageUrl
-   //val addOns: List<AddOn> = emptyList(),
-    //val isNew: Boolean = true // <-- Добавлено
+    val tag: String?,
+    val img: String? // Поле img теперь String?, для обработки возможных null значений
 )
+
+// UiState для управления состоянием экрана
+sealed class UiState {
+    object Loading : UiState()
+    data class Success(val dishes: List<Dish>) : UiState()
+    data class Error(val message: String) : UiState()
+    object Empty : UiState()
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DishDetailCard(
     dish: Dish,
     onDismiss: () -> Unit,
-    onAddToCart: (Dish, List<AddOn>) -> Unit // Callback when "Add to Cart" is clicked
+    onAddToCart: (Dish, List<AddOn>) -> Unit
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val scope = rememberCoroutineScope()
 
-    // Manage selected add-ons within the sheet's state
-    //var selectedAddOns by remember { mutableStateOf(dish.addOns.map { it.copy() }) }
-
     ModalBottomSheet(
         sheetState = sheetState,
         onDismissRequest = onDismiss,
-        dragHandle = null, // You can add a custom drag handle if needed
+        dragHandle = null,
         content = {
             Column(
                 modifier = Modifier
@@ -87,7 +92,6 @@ fun DishDetailCard(
                     .padding(16.dp)
                     .navigationBarsPadding()
             ) {
-                // Close button
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.End
@@ -97,17 +101,11 @@ fun DishDetailCard(
                     }
                 }
 
-                // Dish Image
                 val imageModel = dish.img
                 Image(
                     painter = rememberAsyncImagePainter(
                         ImageRequest.Builder(LocalContext.current)
-                            .data(imageModel) // Use the determined imageModel
-                            // Добавляем placeholder и error изображение для Coil
-                            // Убедитесь, что у вас есть ресурс, например, R.drawable.placeholder_image
-                            // Для демонстрации используем стандартную иконку лаунчера.
-                            // .placeholder(R.drawable.placeholder_image) // Пример
-                            // .error(R.drawable.error_image) // Пример
+                            .data(imageModel)
                             .build()
                     ),
                     contentDescription = dish.name,
@@ -123,7 +121,7 @@ fun DishDetailCard(
                 Text(
                     text = dish.name,
                     fontSize = 24.sp,
-                    fontFamily = Montserrat, // Здесь используется Montserrat
+                    fontFamily = Montserrat,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -131,128 +129,51 @@ fun DishDetailCard(
                 Spacer(modifier = Modifier.height(4.dp))
 
                 Text(
-                    text = "${dish.portion} г.", // Added ' г.' here for consistency
+                    text = "${dish.portion} г.",
                     fontSize = 16.sp,
                     color = Color.Gray,
-                    fontFamily = Montserrat, // Здесь используется Montserrat
+                    fontFamily = Montserrat,
                     modifier = Modifier.fillMaxWidth()
                 )
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-//                if (dish.isNew) {
-//                    Text(
-//                        text = "НОВИНКА",
-//                        fontSize = 12.sp,
-//                        fontFamily = Montserrat, // Здесь используется Montserrat
-//                        fontWeight = FontWeight.Bold,
-//                        color = Color.White,
-//                        modifier = Modifier
-//                            .background(
-//                                Color(0xFF8A2BE2),
-//                                RoundedCornerShape(4.dp)
-//                            ) // Example color (purple)
-//                            .padding(horizontal = 6.dp, vertical = 2.dp)
-//                    )
-//                    Spacer(modifier = Modifier.height(8.dp))
-//                }
-
-                // Description (Added TextOverflow.Ellipsis if needed)
                 Text(
                     text = dish.description,
                     fontSize = 14.sp,
-                    fontFamily = Montserrat, // Здесь используется Montserrat
+                    fontFamily = Montserrat,
                     modifier = Modifier.fillMaxWidth(),
-                    maxLines = 3, // Limit description lines
+                    maxLines = 3,
                     overflow = TextOverflow.Ellipsis
                 )
 
-//                if (dish.addOns.isNotEmpty()) {
-//                    Spacer(modifier = Modifier.height(16.dp))
-//
-//                    // Add-ons section header
-//                    Text(
-//                        text = "Добавки несладкие", // Or dynamically set
-//                        fontSize = 18.sp,
-//                        fontFamily = Montserrat, // Здесь используется Montserrat
-//                        fontWeight = FontWeight.Bold,
-//                        modifier = Modifier.fillMaxWidth()
-//                    )
-//
-//                    Spacer(modifier = Modifier.height(8.dp))
-//
-//                    // Add-ons list
-//                    Column {
-//                        selectedAddOns.forEachIndexed { index, addOn ->
-//                            Row(
-//                                modifier = Modifier
-//                                    .fillMaxWidth()
-//                                    .clickable {
-//                                        selectedAddOns = selectedAddOns.toMutableList().apply {
-//                                            this[index] = addOn.copy(isSelected = !addOn.isSelected)
-//                                        }
-//                                    }
-//                                    .padding(vertical = 8.dp),
-//                                verticalAlignment = Alignment.CenterVertically,
-//                                horizontalArrangement = Arrangement.SpaceBetween
-//                            ) {
-//                                Column {
-//                                    Text(
-//                                        text = addOn.name,
-//                                        fontSize = 16.sp,
-//                                        fontFamily = Montserrat // Здесь используется Montserrat
-//                                    )
-//                                    Text(
-//                                        text = "+${addOn.price.toInt()} ₽",
-//                                        fontSize = 14.sp,
-//                                        color = Color.Gray,
-//                                        fontFamily = Montserrat // Здесь используется Montserrat
-//                                    )
-//                                }
-//                                Checkbox(
-//                                    checked = addOn.isSelected,
-//                                    onCheckedChange = { isChecked ->
-//                                        selectedAddOns = selectedAddOns.toMutableList().apply {
-//                                            this[index] = addOn.copy(isSelected = isChecked)
-//                                        }
-//                                    },
-//                                    colors = CheckboxDefaults.colors(checkedColor = Color.Black)
-//                                )
-//                            }
-//                        }
-//                    }
-//                }
-
                 Spacer(modifier = Modifier.height(24.dp))
 
-                // Total price and Add to Cart button
                 val totalSum = dish.cost
-               // + selectedAddOns.filter { it.isSelected }.sumOf { it.price }
-//
-//                Button(
-//                    onClick = {
-//                        onAddToCart(dish, selectedAddOns.filter { it.isSelected })
-//                        // Optionally close the sheet after adding to cart
-//                        scope.launch { sheetState.hide() }.invokeOnCompletion {
-//                            if (!sheetState.isVisible) {
-//                                onDismiss() // Dismiss after animation
-//                            }
-//                        }
-//                    },
-//                    modifier = Modifier
-//                        .fillMaxWidth()
-//                        .height(50.dp),
-//                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFFA500)), // Example color (orange)
-//                    shape = RoundedCornerShape(8.dp)
-//                ) {
-//                    Text(
-//                        text = "${totalSum.toInt()} ₽",
-//                        fontSize = 18.sp,
-//                        fontFamily = Montserrat, // Здесь используется Montserrat
-//                        fontWeight = FontWeight.Bold,
-//                        color = Color.White
-//                    )
+                Button(
+                    onClick = {
+                        onAddToCart(dish, emptyList())
+                        scope.launch { sheetState.hide() }.invokeOnCompletion {
+                            if (!sheetState.isVisible) {
+                                onDismiss()
+                            }
+                        }
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(50.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFFA500)),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text(
+                        text = "${totalSum.toInt()} ₽",
+                        fontSize = 18.sp,
+                        fontFamily = Montserrat,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
                 }
+            }
         }
     )
 }
@@ -266,7 +187,7 @@ fun DishCard(
     Card(
         modifier = Modifier
             .padding(horizontal = 4.dp, vertical = 4.dp)
-            .fillMaxWidth(), // Ensure card fills its grid cell width
+            .fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
             containerColor = Color.White
@@ -279,46 +200,19 @@ fun DishCard(
                     .fillMaxWidth()
                     .height(180.dp)
             ) {
-                // Load image from URL using Coil, handle null URL
                 val imageModel = dish.img
                 Image(
                     painter = rememberAsyncImagePainter(
                         ImageRequest.Builder(LocalContext.current)
-                            .data(imageModel) // Use the determined imageModel
-                            // Добавляем placeholder и error изображение для Coil
-                            // Убедитесь, что у вас есть ресурс, например, R.drawable.placeholder_image
-                            // Для демонстрации используем стандартную иконку лаунчера.
-                            // .placeholder(R.drawable.placeholder_image) // Пример
-                            // .error(R.drawable.error_image) // Пример
+                            .data(imageModel)
                             .build()
                     ),
                     contentDescription = dish.name,
                     modifier = Modifier
                         .clip(RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp))
-                        .fillMaxSize(), // Image fills the Box
+                        .fillMaxSize(),
                     contentScale = ContentScale.Crop
                 )
-
-//                if (dish.isNew) {
-//                    Surface(
-//                        color = Color(0xFFF3E5F5),
-//                        shape = RoundedCornerShape(bottomEnd = 8.dp),
-//                        modifier = Modifier
-//                            .align(Alignment.TopStart)
-//                    ) {
-//                        Text(
-//                            text = "НОВИНКА",
-//                            color = Color.Black,
-//                            fontSize = 9.sp,
-//                            fontWeight = FontWeight.SemiBold,
-//                            fontFamily = Montserrat, // Здесь используется Montserrat
-//                            modifier = Modifier.padding(
-//                                horizontal = 6.dp,
-//                                vertical = 3.dp
-//                            )
-//                        )
-//                    }
-//                }
             }
 
             Column(
@@ -332,17 +226,17 @@ fun DishCard(
                     text = dish.name,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Normal,
-                    fontFamily = Montserrat, // Здесь используется Montserrat
+                    fontFamily = Montserrat,
                     color = textColor,
                     lineHeight = 18.sp,
-                    maxLines = 1, // Prevent name from wrapping too much
+                    maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
                     text = "${dish.portion} г.",
                     fontSize = 8.sp,
                     fontWeight = FontWeight.Normal,
-                    fontFamily = Montserrat, // Здесь используется Montserrat
+                    fontFamily = Montserrat,
                     color = textColor,
                     lineHeight = 12.sp
                 )
@@ -351,7 +245,7 @@ fun DishCard(
                     text = dish.description,
                     fontSize = 8.sp,
                     fontWeight = FontWeight.Normal,
-                    fontFamily = Montserrat, // Здесь используется Montserrat
+                    fontFamily = Montserrat,
                     color = textColor,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
@@ -370,10 +264,10 @@ fun DishCard(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
-                        text = "от ${dish.cost.toInt()}₽", // Use basePrice
+                        text = "от ${dish.cost.toInt()}₽",
                         fontWeight = FontWeight.Normal,
                         fontSize = 12.sp,
-                        fontFamily = Montserrat, // Здесь используется Montserrat
+                        fontFamily = Montserrat,
                         color = MaterialTheme.colorScheme.primary
                     )
                     Spacer(modifier = Modifier.width(4.dp))
@@ -391,31 +285,52 @@ fun DishCard(
 
 @Composable
 fun MainMenuScreen() {
-    // State to control the visibility of the bottom sheet and which dish is selected
     var selectedDish: Dish? by remember { mutableStateOf(null) }
     val showDishDetailSheet by remember { derivedStateOf { selectedDish != null } }
 
-    // State to hold the list of dishes fetched from the API
-    var dishesList by remember { mutableStateOf(emptyList<Dish>()) }
+    // uiState будет управлять отображением: загрузка, успех, ошибка, пустота
+    var uiState: UiState by remember { mutableStateOf(UiState.Loading) }
 
-    // Coroutine scope for launching suspend functions
     val scope = rememberCoroutineScope()
 
-    // Effect to fetch data when the Composable enters the composition
+    // LaunchedEffect запускает загрузку данных только один раз при первом отображении экрана
     LaunchedEffect(Unit) {
+        uiState = UiState.Loading // Убедимся, что состояние загрузки установлено до начала загрузки
         try {
-            val response_dishes: HttpResponse = MainViewModel.client.get("http://5.166.55.78:6567/dish")
-            if (response_dishes.status.value == 200) {
-                val fetchedList = response_dishes.body<List<Dish>>()
-                dishesList = fetchedList // Update the state with fetched data
+            val response: HttpResponse = MainViewModel.client.get("http://5.166.55.78:6567/dish")
+
+            if (response.status.value == 200) {
+                val fetchedList = response.body<List<Dish>>()
+                Log.d("MainMenuScreen", "Количество загруженных блюд: ${fetchedList.size}")
+                if (fetchedList.isEmpty()) {
+                    uiState = UiState.Empty // Если список пуст
+                } else {
+                    uiState = UiState.Success(fetchedList) // Успешная загрузка данных
+                    // Для отладки: выводим URL-адреса изображений
+                    fetchedList.forEachIndexed { index, dish ->
+                        Log.d(
+                            "MainMenuScreen",
+                            "Блюдо $index: ${dish.name}, URL изображения: ${dish.img}"
+                        )
+                    }
+                }
             } else {
-                // Handle non-200 responses (e.g., show an error message)
-                println("Error fetching dishes: ${response_dishes.status.value}")
+                val errorBody = response.body<String>()
+                Log.e(
+                    "MainMenuScreen",
+                    "Ошибка при загрузке блюд: ${response.status.value}, Тело ответа: $errorBody"
+                )
+                uiState = UiState.Error("Ошибка загрузки данных: ${response.status.value}")
             }
+        } catch (e: SerializationException) {
+            Log.e("MainMenuScreen", "Ошибка десериализации JSON: ${e.message}", e)
+            uiState = UiState.Error("Ошибка обработки данных: ${e.message}")
+        } catch (e: IOException) {
+            Log.e("MainMenuScreen", "Сетевая ошибка: ${e.message}", e)
+            uiState = UiState.Error("Проверьте подключение к интернету: ${e.message}")
         } catch (e: Exception) {
-            // Handle network or parsing errors
-            println("Exception during dish fetch: ${e.message}")
-            // Optionally, show a SnackBar or other UI feedback
+            Log.e("MainMenuScreen", "Неизвестная ошибка: ${e.message}", e)
+            uiState = UiState.Error("Произошла неизвестная ошибка: ${e.message}")
         }
     }
 
@@ -430,9 +345,8 @@ fun MainMenuScreen() {
         contentPadding = PaddingValues(
             horizontal = 4.dp,
             vertical = 0.dp
-        ) // Добавлен горизонтальный отступ для сетки
+        )
     ) {
-        // Header items
         item(span = { GridItemSpan(maxLineSpan) }) {
             Column(
                 modifier = Modifier
@@ -440,23 +354,22 @@ fun MainMenuScreen() {
                     .padding(
                         horizontal = 8.dp,
                         vertical = 8.dp
-                    ) // Увеличиваем отступы для верхнего блока
+                    )
             ) {
                 Text(
                     text = "Доставим сюда:",
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontFamily = Montserrat // Здесь используется Montserrat
+                    fontFamily = Montserrat
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = "улица Студенческая, 26",
                     fontSize = 16.sp,
-                    fontWeight = FontWeight.Thin, // Используем Thin для более легкого начертания
-                    fontFamily = Montserrat, // Здесь используется Montserrat
+                    fontWeight = FontWeight.Thin,
+                    fontFamily = Montserrat,
                     color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.clickable {
-                        // TODO: Обработка клика по адресу доставки
                         println("Клик по адресу доставки")
                     }
                 )
@@ -471,40 +384,87 @@ fun MainMenuScreen() {
                     .padding(
                         horizontal = 8.dp,
                         vertical = 8.dp
-                    ), // Увеличиваем отступы для заголовка "Рекомендуем"
+                    ),
                 style = MaterialTheme.typography.headlineSmall,
-                fontFamily = Montserrat // Здесь используется Montserrat
+                fontFamily = Montserrat
             )
         }
 
-        // Dish items - now using the fetched dishesList
-        items(dishesList, key = { it.id }) { dish ->
-            DishCard(
-                dish = dish,
-                onPriceButtonClick = { clickedDish ->
-                    selectedDish = clickedDish // Show the bottom sheet
+        // Отображение контента в зависимости от UiState
+        when (uiState) {
+            UiState.Loading -> {
+                // Отображаем индикатор загрузки на весь экран сетки
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(200.dp), // Можно настроить высоту
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator()
+                    }
                 }
-            )
+            }
+
+            is UiState.Success -> {
+                val dishes = (uiState as UiState.Success).dishes
+                // Отображаем все блюда, когда данные успешно загружены
+                items(dishes, key = { it.id }) { dish ->
+                    DishCard(
+                        dish = dish,
+                        onPriceButtonClick = { clickedDish ->
+                            selectedDish = clickedDish
+                        }
+                    )
+                }
+            }
+
+            is UiState.Error -> {
+                // Отображаем сообщение об ошибке на весь экран сетки
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(200.dp), // Можно настроить высоту
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "Ошибка: ${(uiState as UiState.Error).message}",
+                            color = Color.Red
+                        )
+                    }
+                }
+            }
+
+            UiState.Empty -> {
+                // Отображаем сообщение о пустом списке на весь экран сетки
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(200.dp), // Можно настроить высоту
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(text = "Список блюд пуст.")
+                    }
+                }
+            }
         }
     }
 
-    // Show the bottom sheet when selectedDish is not null
     if (showDishDetailSheet) {
-        selectedDish?.let { dish -> // Более безопасный способ обработки nullable selectedDish
+        selectedDish?.let { dish ->
             DishDetailCard(
-                dish = dish, // Теперь 'dish' гарантированно не null
-                onDismiss = { selectedDish = null }, // Hide the bottom sheet
-                onAddToCart = { addedDish, addOns -> // Переименован параметр, чтобы избежать конфликта имен
-                    // TODO: Implement logic to add the dish with selected add-ons to the cart
-                    println("Added to cart: ${addedDish.name} with add-ons: ${addOns.joinToString { it.name }}")
+                dish = dish,
+                onDismiss = { selectedDish = null },
+                onAddToCart = { addedDish, addOns ->
+                    Log.d("MainMenuScreen", "Добавлено в корзину: ${addedDish.name}")
                 }
             )
         }
     }
 }
 
-
-// Preview Composable (Optional)
 @Preview(showBackground = true)
 @Composable
 fun MainMenuPreview() {
