@@ -1,0 +1,18 @@
+CREATE TABLE Orders (
+id INTEGER PRIMARY KEY AUTOINCREMENT,
+dishId INTEGER NOT NULL,
+dishName TEXT NOT NULL,
+dishCost INTEGER NOT NULL
+);
+
+
+insertOrder:
+INSERT INTO Orders (dishId, dishName, dishCost)
+VALUES (?, ?, ?);
+
+
+selectAllOrders:
+SELECT * FROM Orders;
+
+deleteAllOrders:
+DELETE FROM Orders;

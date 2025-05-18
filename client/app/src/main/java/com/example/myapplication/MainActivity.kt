@@ -2,7 +2,7 @@ package com.example.myapplication
 
 import android.content.pm.ActivityInfo
 import android.os.Bundle
-import android.util.Log
+
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.animation.EnterTransition
@@ -26,99 +26,32 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
-import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.example.myapplication.ui.theme.MyApplicationTheme
-import com.example.myapplication.MainMenuScreen
-import io.ktor.client.HttpClient
-import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
-import io.ktor.client.request.get
-import io.ktor.client.statement.HttpResponse
-import io.ktor.client.statement.bodyAsText
-import kotlinx.coroutines.launch
-import okhttp3.OkHttp
-import io.ktor.client.plugins.logging.LogLevel
-import io.ktor.client.plugins.logging.Logging
-import io.ktor.client.plugins.logging.Logger
-import io.ktor.serialization.kotlinx.json.json
-
-
-
 
 val Montserrat = FontFamily(
     Font(R.font.regular, FontWeight.Normal),
     Font(R.font.bold, FontWeight.Bold),
 )
 
-object MainViewModel : ViewModel() {
-
-    val client = HttpClient() {
-        install(Logging) {
-            logger = object : Logger {
-                override fun log(message: String) {
-                    Log.d("KtorLogger", message)
-                }
-            }
-            level = LogLevel.ALL
-        }
-        install(ContentNegotiation) {
-            json()
-        }
-    }
-
-    //fun fetchDishData() {
-    //    viewModelScope.launch {
-    //        try {
-    //            val url = "http://5.167.254.44:6567/dish"
-    //            Log.d("NetworkRequest", "Попытка получить данные с: $url")
-    //            val response: HttpResponse = client.get(url)
-    //            if (response.status.value == 200) {
-    //                val responseBody = response.bodyAsText()
-    //                Log.d("NetworkRequest", "Данные успешно получены (статус 200): $responseBody")
-    //                // Заменил print(responseBody) на Log.d для лучшей практики логирования в Android
-    //                // Log.d("NetworkRequestRawBody", responseBody) // Можно добавить, если нужно отдельно логировать только тело
-    //            } else {
-    //                Log.e(
-    //                    "NetworkRequest",
-    //                    "Ошибка получения данных: ${response.status.value} - ${response.status.description}"
-    //                )
-    //            }
-    //        } catch (e: Exception) {
-    //            Log.e("NetworkRequest", "Ошибка сетевого запроса: ${e.localizedMessage}", e)
-    //        }
-    //    }
-    //}
-
-    override fun onCleared() {
-        super.onCleared()
-        client.close()
-        Log.d("NetworkRequest", "HttpClient закрыт.")
-    }
-}
-
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        //MainViewModel.fetchDishData()
-        this.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT)
+        this.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT) // разрешаю вам использовать приложение в вертикальном положении
         setContent {
             MyApplicationTheme {
                 MainScreen()
@@ -131,8 +64,7 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun MainScreen() {
     val navController = rememberNavController()
-    var selectedItem by rememberSaveable { mutableStateOf(0) }
-
+    var selectedItem by rememberSaveable { mutableIntStateOf(0) }
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
@@ -156,7 +88,6 @@ fun MainScreen() {
                         .fillMaxSize(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
-
                 ) {
                     items.forEachIndexed { index, item ->
                         NavigationBarItem(
@@ -201,7 +132,6 @@ fun MainScreen() {
                                             saveState = true
                                         }
                                     }
-
                                     launchSingleTop = true
                                     restoreState = true
                                 }
@@ -228,7 +158,6 @@ fun MainScreen() {
         }
     }
 }
-
 
 @Composable
 fun MainComposable() {

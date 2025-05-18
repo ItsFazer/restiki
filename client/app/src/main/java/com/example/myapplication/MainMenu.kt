@@ -1,17 +1,16 @@
 package com.example.myapplication
 
-import android.os.Bundle
-import android.util.Log // Импорт для Logcat
-import androidx.activity.ComponentActivity
-import androidx.activity.compose.setContent
+import android.util.Log
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
@@ -24,26 +23,37 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.Font
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.rememberAsyncImagePainter
 import coil.request.ImageRequest
-import com.example.myapplication.MainViewModel.client // Assuming MainViewModel exists and client is public
+import com.example.Database
+import com.example.Orders
+import com.example.OrderQueries
 import com.example.myapplication.ui.theme.MyApplicationTheme
+import io.ktor.client.HttpClient
 import io.ktor.client.call.body
+import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.client.plugins.logging.LogLevel
+import io.ktor.client.plugins.logging.Logger
+import io.ktor.client.plugins.logging.Logging
 import io.ktor.client.request.get
 import io.ktor.client.statement.HttpResponse
+import io.ktor.serialization.kotlinx.json.json
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerializationException
 import java.io.IOException
 
-// Data classes
+// Модели данных
 @Serializable
 data class AddOn(
     val id: Int,
@@ -60,10 +70,10 @@ data class Dish(
     val portion: Int,
     val cost: Int,
     val tag: String?,
-    val img: String? // Поле img теперь String?, для обработки возможных null значений
+    val img: String?
 )
 
-// UiState для управления состоянием экрана
+// Состояния интерфейса
 sealed class UiState {
     object Loading : UiState()
     data class Success(val dishes: List<Dish>) : UiState()
@@ -76,7 +86,8 @@ sealed class UiState {
 fun DishDetailCard(
     dish: Dish,
     onDismiss: () -> Unit,
-    onAddToCart: (Dish, List<AddOn>) -> Unit
+    onAddToCart: (Dish, List<AddOn>) -> Unit,
+    viewModel: MainMenuViewModel = viewModel()
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val scope = rememberCoroutineScope()
@@ -152,8 +163,15 @@ fun DishDetailCard(
                 val totalSum = dish.cost
                 Button(
                     onClick = {
-                        onAddToCart(dish, emptyList())
-                        scope.launch { sheetState.hide() }.invokeOnCompletion {
+                        scope.launch {
+                            try {
+                                viewModel.addOrder(dish)
+                                onAddToCart(dish, emptyList())
+                                sheetState.hide()
+                            } catch (e: Exception) {
+                                Log.e("DishDetailCard", "Ошибка при добавлении заказа: ${e.message}", e)
+                            }
+                        }.invokeOnCompletion {
                             if (!sheetState.isVisible) {
                                 onDismiss()
                             }
@@ -166,7 +184,7 @@ fun DishDetailCard(
                     shape = RoundedCornerShape(8.dp)
                 ) {
                     Text(
-                        text = "${totalSum.toInt()} ₽",
+                        text = "${totalSum} ₽",
                         fontSize = 18.sp,
                         fontFamily = Montserrat,
                         fontWeight = FontWeight.Bold,
@@ -179,6 +197,99 @@ fun DishDetailCard(
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun OrdersSummaryCard(
+    orders: List<Orders>,
+    onDismiss: () -> Unit
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    ModalBottomSheet(
+        sheetState = sheetState,
+        onDismissRequest = onDismiss,
+        dragHandle = null,
+        content = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp)
+                    .navigationBarsPadding()
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Ваш заказ",
+                        fontSize = 24.sp,
+                        fontFamily = Montserrat,
+                        fontWeight = FontWeight.Bold
+                    )
+                    IconButton(onClick = onDismiss) {
+                        Icon(Icons.Default.Close, contentDescription = "Закрыть")
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                if (orders.isEmpty()) {
+                    Text(
+                        text = "Корзина пуста",
+                        fontSize = 16.sp,
+                        fontFamily = Montserrat,
+                        color = Color.Gray,
+                        modifier = Modifier.align(Alignment.CenterHorizontally)
+                    )
+                } else {
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 300.dp)
+                    ) {
+                        itemsIndexed(orders) { _, order ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 8.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = order.dishName,
+                                    fontSize = 16.sp,
+                                    fontFamily = Montserrat,
+                                    fontWeight = FontWeight.Medium,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                Text(
+                                    text = "${order.dishCost} ₽",
+                                    fontSize = 16.sp,
+                                    fontFamily = Montserrat,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                            Divider(color = Color.Gray.copy(alpha = 0.2f))
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    val totalCost = orders.sumOf { it.dishCost.toInt() }
+                    Text(
+                        text = "Итого: $totalCost ₽",
+                        fontSize = 20.sp,
+                        fontFamily = Montserrat,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.align(Alignment.End)
+                    )
+                }
+            }
+        }
+    )
+}
+
 @Composable
 fun DishCard(
     dish: Dish,
@@ -264,7 +375,7 @@ fun DishCard(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
-                        text = "от ${dish.cost.toInt()}₽",
+                        text = "от ${dish.cost}₽",
                         fontWeight = FontWeight.Normal,
                         fontSize = 12.sp,
                         fontFamily = Montserrat,
@@ -283,169 +394,290 @@ fun DishCard(
     }
 }
 
-@Composable
-fun MainMenuScreen() {
-    var selectedDish: Dish? by remember { mutableStateOf(null) }
-    val showDishDetailSheet by remember { derivedStateOf { selectedDish != null } }
+class MainMenuViewModel : ViewModel() {
+    private val _uiState = MutableStateFlow<UiState>(UiState.Loading)
+    val uiState: StateFlow<UiState> = _uiState
+    private val _hasOrders = MutableStateFlow(false)
+    val hasOrders: StateFlow<Boolean> = _hasOrders
+    private lateinit var database: Database
+    private lateinit var queries: OrderQueries
 
-    // uiState будет управлять отображением: загрузка, успех, ошибка, пустота
-    var uiState: UiState by remember { mutableStateOf(UiState.Loading) }
-
-    val scope = rememberCoroutineScope()
-
-    // LaunchedEffect запускает загрузку данных только один раз при первом отображении экрана
-    LaunchedEffect(Unit) {
-        uiState = UiState.Loading // Убедимся, что состояние загрузки установлено до начала загрузки
-        try {
-            val response: HttpResponse = MainViewModel.client.get("http://5.167.254.44:6567/dish")
-
-            if (response.status.value == 200) {
-                val fetchedList = response.body<List<Dish>>()
-                Log.d("MainMenuScreen", "Количество загруженных блюд: ${fetchedList.size}")
-                if (fetchedList.isEmpty()) {
-                    uiState = UiState.Empty // Если список пуст
-                } else {
-                    uiState = UiState.Success(fetchedList) // Успешная загрузка данных
-                    // Для отладки: выводим URL-адреса изображений
-                    fetchedList.forEachIndexed { index, dish ->
-                        Log.d(
-                            "MainMenuScreen",
-                            "Блюдо $index: ${dish.name}, URL изображения: ${dish.img}"
-                        )
-                    }
+    private val client = HttpClient {
+        install(Logging) {
+            logger = object : Logger {
+                override fun log(message: String) {
+                    Log.d("KtorLogger", message)
                 }
-            } else {
-                val errorBody = response.body<String>()
-                Log.e(
-                    "MainMenuScreen",
-                    "Ошибка при загрузке блюд: ${response.status.value}, Тело ответа: $errorBody"
-                )
-                uiState = UiState.Error("Ошибка загрузки данных: ${response.status.value}")
             }
-        } catch (e: SerializationException) {
-            Log.e("MainMenuScreen", "Ошибка десериализации JSON: ${e.message}", e)
-            uiState = UiState.Error("Ошибка обработки данных: ${e.message}")
-        } catch (e: IOException) {
-            Log.e("MainMenuScreen", "Сетевая ошибка: ${e.message}", e)
-            uiState = UiState.Error("Проверьте подключение к интернету: ${e.message}")
-        } catch (e: Exception) {
-            Log.e("MainMenuScreen", "Неизвестная ошибка: ${e.message}", e)
-            uiState = UiState.Error("Произошла неизвестная ошибка: ${e.message}")
+            level = LogLevel.ALL
+        }
+        install(ContentNegotiation) {
+            json()
         }
     }
 
+    fun initializeDatabase(context: android.content.Context) {
+        database = Database_s.getDatabase(context)
+        queries = database.orderQueries
+        clearDatabase()
+        checkOrders()
+    }
 
-    LazyVerticalGrid(
-        columns = GridCells.Fixed(2),
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color(255, 255, 255)),
-        horizontalArrangement = Arrangement.spacedBy(0.dp),
-        verticalArrangement = Arrangement.spacedBy(0.dp),
-        contentPadding = PaddingValues(
-            horizontal = 4.dp,
-            vertical = 0.dp
-        )
-    ) {
-        item(span = { GridItemSpan(maxLineSpan) }) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(
-                        horizontal = 8.dp,
-                        vertical = 8.dp
-                    )
-            ) {
-                Text(
-                    text = "Доставим сюда:",
-                    fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontFamily = Montserrat
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "улица Студенческая, 26",
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Thin,
-                    fontFamily = Montserrat,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.clickable {
-                        println("Клик по адресу доставки")
-                    }
-                )
+    private fun clearDatabase() {
+        viewModelScope.launch {
+            try {
+                queries.deleteAllOrders()
+                Log.d("MainMenuViewModel", "База данных заказов очищена")
+            } catch (e: Exception) {
+                Log.e("MainMenuViewModel", "Ошибка при очистке базы данных: ${e.message}", e)
             }
         }
+    }
 
-        item(span = { GridItemSpan(maxLineSpan) }) {
-            Text(
-                text = "Рекомендуем",
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(
-                        horizontal = 8.dp,
-                        vertical = 8.dp
-                    ),
-                style = MaterialTheme.typography.headlineSmall,
-                fontFamily = Montserrat
-            )
+    private fun checkOrders() {
+        viewModelScope.launch {
+            try {
+                val orders = queries.selectAllOrders().executeAsList()
+                _hasOrders.value = orders.isNotEmpty()
+            } catch (e: Exception) {
+                Log.e("MainMenuViewModel", "Ошибка при проверке заказов: ${e.message}", e)
+            }
         }
+    }
 
-        // Отображение контента в зависимости от UiState
-        when (uiState) {
-            UiState.Loading -> {
-                // Отображаем индикатор загрузки на весь экран сетки
-                item(span = { GridItemSpan(maxLineSpan) }) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(200.dp), // Можно настроить высоту
-                        contentAlignment = Alignment.Center
-                    ) {
-                        CircularProgressIndicator()
+    fun getAllOrders(): List<Orders> {
+        return try {
+            queries.selectAllOrders().executeAsList()
+        } catch (e: Exception) {
+            Log.e("MainMenuViewModel", "Ошибка при получении заказов: ${e.message}", e)
+            emptyList()
+        }
+    }
+
+    init {
+        fetchDishes()
+    }
+
+    fun fetchDishes() {
+        viewModelScope.launch {
+            _uiState.value = UiState.Loading
+            try {
+                val response: HttpResponse = client.get("http://5.167.254.44:6567/dish")
+                if (response.status.value == 200) {
+                    val fetchedList = response.body<List<Dish>>()
+                    Log.d("MainMenuViewModel", "Количество загруженных блюд: ${fetchedList.size}")
+                    if (fetchedList.isEmpty()) {
+                        _uiState.value = UiState.Empty
+                    } else {
+                        _uiState.value = UiState.Success(fetchedList)
+                        fetchedList.forEachIndexed { index, dish ->
+                            Log.d(
+                                "MainMenuViewModel",
+                                "Блюдо $index: ${dish.name}, URL изображения: ${dish.img}"
+                            )
+                        }
                     }
+                } else {
+                    val errorBody = response.body<String>()
+                    Log.e(
+                        "MainMenuViewModel",
+                        "Ошибка при загрузке блюд: ${response.status.value}, Тело ответа: $errorBody"
+                    )
+                    _uiState.value =
+                        UiState.Error("Ошибка загрузки данных: ${response.status.value}")
+                }
+            } catch (e: SerializationException) {
+                Log.e("MainMenuViewModel", "Ошибка десериализации JSON: ${e.message}", e)
+                _uiState.value = UiState.Error("Ошибка обработки данных: ${e.message}")
+            } catch (e: IOException) {
+                Log.e("MainMenuViewModel", "Сетевая ошибка: ${e.message}", e)
+                _uiState.value = UiState.Error("Проверьте подключение к интернету: ${e.message}")
+            } catch (e: Exception) {
+                Log.e("MainMenuViewModel", "Неизвестная ошибка: ${e.message}", e)
+                _uiState.value = UiState.Error("Произошла неизвестная ошибка: ${e.message}")
+            }
+        }
+    }
+
+    fun addOrder(dish: Dish) {
+        viewModelScope.launch {
+            try {
+                queries.insertOrder(
+                    dishId = dish.id.toLong(),
+                    dishName = dish.name,
+                    dishCost = dish.cost.toLong()
+                )
+                Log.d("MainMenuViewModel", "Добавлен заказ: ${dish.name}, ID: ${dish.id}, Стоимость: ${dish.cost}")
+                checkOrders()
+
+                // Логирование всех заказов
+                val orders = queries.selectAllOrders().executeAsList()
+                Log.d("MainMenuViewModel", "Содержимое таблицы заказов:")
+                orders.forEach { order ->
+                    Log.d(
+                        "MainMenuViewModel",
+                        "Заказ ID: ${order.id}, Блюдо: ${order.dishName}, Стоимость: ${order.dishCost}"
+                    )
+                }
+            } catch (e: Exception) {
+                Log.e("MainMenuViewModel", "Ошибка при работе с базой данных: ${e.message}", e)
+            }
+        }
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        client.close()
+        Log.d("MainMenuViewModel", "HttpClient закрыт.")
+    }
+}
+
+@Composable
+fun MainMenuScreen(viewModel: MainMenuViewModel = viewModel()) {
+    var selectedDish: Dish? by remember { mutableStateOf(null) }
+    var showOrdersSummary by remember { mutableStateOf(false) }
+    val showDishDetailSheet by remember { derivedStateOf { selectedDish != null } }
+    val uiState by viewModel.uiState.collectAsState()
+    val hasOrders by viewModel.hasOrders.collectAsState()
+    val context = LocalContext.current
+
+    // Инициализация базы данных
+    LaunchedEffect(Unit) {
+        viewModel.initializeDatabase(context)
+    }
+
+    Scaffold(
+        floatingActionButton = {
+            if (hasOrders) {
+                ExtendedFloatingActionButton(
+                    onClick = { showOrdersSummary = true },
+                    containerColor = Color(0xFFFFA500),
+                    contentColor = Color.White,
+                    modifier = Modifier
+                        .padding(bottom = 16.dp)
+                        .width(200.dp)
+                        .height(60.dp)
+                ) {
+                    Text(
+                        text = "Купить",
+                        fontSize = 20.sp,
+                        fontFamily = Montserrat,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
             }
-
-            is UiState.Success -> {
-                val dishes = (uiState as UiState.Success).dishes
-                // Отображаем все блюда, когда данные успешно загружены
-                items(dishes, key = { it.id }) { dish ->
-                    DishCard(
-                        dish = dish,
-                        onPriceButtonClick = { clickedDish ->
-                            selectedDish = clickedDish
+        },
+        floatingActionButtonPosition = FabPosition.Center
+    ) { paddingValues ->
+        LazyVerticalGrid(
+            columns = GridCells.Fixed(2),
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color(255, 255, 255))
+                .padding(paddingValues),
+            horizontalArrangement = Arrangement.spacedBy(0.dp),
+            verticalArrangement = Arrangement.spacedBy(0.dp),
+            contentPadding = PaddingValues(
+                horizontal = 4.dp,
+                vertical = 0.dp
+            )
+        ) {
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(
+                            horizontal = 8.dp,
+                            vertical = 8.dp
+                        )
+                ) {
+                    Text(
+                        text = "Доставим сюда:",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontFamily = Montserrat
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "улица Студенческая, 26",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Thin,
+                        fontFamily = Montserrat,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.clickable {
+                            println("Клик по адресу доставки")
                         }
                     )
                 }
             }
 
-            is UiState.Error -> {
-                // Отображаем сообщение об ошибке на весь экран сетки
-                item(span = { GridItemSpan(maxLineSpan) }) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(200.dp), // Можно настроить высоту
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "Ошибка: ${(uiState as UiState.Error).message}",
-                            color = Color.Red
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                Text(
+                    text = "Рекомендуем",
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(
+                            horizontal = 8.dp,
+                            vertical = 8.dp
+                        ),
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontFamily = Montserrat
+                )
+            }
+
+            // Отображение контента в зависимости от состояния
+            when (uiState) {
+                UiState.Loading -> {
+                    item(span = { GridItemSpan(maxLineSpan) }) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(200.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CircularProgressIndicator()
+                        }
+                    }
+                }
+
+                is UiState.Success -> {
+                    val dishes = (uiState as UiState.Success).dishes
+                    items(dishes, key = { it.id }) { dish ->
+                        DishCard(
+                            dish = dish,
+                            onPriceButtonClick = { clickedDish ->
+                                selectedDish = clickedDish
+                            }
                         )
                     }
                 }
-            }
 
-            UiState.Empty -> {
-                // Отображаем сообщение о пустом списке на весь экран сетки
-                item(span = { GridItemSpan(maxLineSpan) }) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(200.dp), // Можно настроить высоту
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(text = "Список блюд пуст.")
+                is UiState.Error -> {
+                    item(span = { GridItemSpan(maxLineSpan) }) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(200.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "Ошибка: ${(uiState as UiState.Error).message}",
+                                color = Color.Red
+                            )
+                        }
+                    }
+                }
+
+                UiState.Empty -> {
+                    item(span = { GridItemSpan(maxLineSpan) }) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(200.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(text = "Список блюд пуст.")
+                        }
                     }
                 }
             }
@@ -459,9 +691,17 @@ fun MainMenuScreen() {
                 onDismiss = { selectedDish = null },
                 onAddToCart = { addedDish, addOns ->
                     Log.d("MainMenuScreen", "Добавлено в корзину: ${addedDish.name}")
-                }
+                },
+                viewModel = viewModel
             )
         }
+    }
+
+    if (showOrdersSummary) {
+        OrdersSummaryCard(
+            orders = viewModel.getAllOrders(),
+            onDismiss = { showOrdersSummary = false }
+        )
     }
 }
 
