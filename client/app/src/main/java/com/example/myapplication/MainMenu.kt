@@ -297,7 +297,7 @@ fun MainMenuScreen() {
     LaunchedEffect(Unit) {
         uiState = UiState.Loading // Убедимся, что состояние загрузки установлено до начала загрузки
         try {
-            val response: HttpResponse = MainViewModel.client.get("http://5.166.55.78:6567/dish")
+            val response: HttpResponse = MainViewModel.client.get("http://5.167.254.44:6567/dish")
 
             if (response.status.value == 200) {
                 val fetchedList = response.body<List<Dish>>()

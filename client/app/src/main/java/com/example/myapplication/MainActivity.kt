@@ -60,6 +60,9 @@ import io.ktor.client.plugins.logging.Logging
 import io.ktor.client.plugins.logging.Logger
 import io.ktor.serialization.kotlinx.json.json
 
+
+
+
 val Montserrat = FontFamily(
     Font(R.font.regular, FontWeight.Normal),
     Font(R.font.bold, FontWeight.Bold),
@@ -68,43 +71,41 @@ val Montserrat = FontFamily(
 object MainViewModel : ViewModel() {
 
     val client = HttpClient() {
-        // Активируем плагин логирования Ktor
         install(Logging) {
             logger = object : Logger {
                 override fun log(message: String) {
-                    Log.d("KtorLogger", message) // Используем стандартный Android Log
+                    Log.d("KtorLogger", message)
                 }
             }
-            level = LogLevel.ALL // Логировать всё: запросы, ответы, заголовки, тело и т.д.
+            level = LogLevel.ALL
         }
         install(ContentNegotiation) {
             json()
         }
     }
 
-    fun fetchDishData() {
-        viewModelScope.launch {
-            try {
-                val url = "http://5.166.55.78:6567/dish"
-                Log.d("NetworkRequest", "Попытка получить данные с: $url")
-                val response: HttpResponse = client.get(url)
-
-                if (response.status.value == 200) {
-                    val responseBody = response.bodyAsText()
-                    Log.d("NetworkRequest", "Данные успешно получены (статус 200): $responseBody")
-                    // Заменил print(responseBody) на Log.d для лучшей практики логирования в Android
-                    // Log.d("NetworkRequestRawBody", responseBody) // Можно добавить, если нужно отдельно логировать только тело
-                } else {
-                    Log.e(
-                        "NetworkRequest",
-                        "Ошибка получения данных: ${response.status.value} - ${response.status.description}"
-                    )
-                }
-            } catch (e: Exception) {
-                Log.e("NetworkRequest", "Ошибка сетевого запроса: ${e.localizedMessage}", e)
-            }
-        }
-    }
+    //fun fetchDishData() {
+    //    viewModelScope.launch {
+    //        try {
+    //            val url = "http://5.167.254.44:6567/dish"
+    //            Log.d("NetworkRequest", "Попытка получить данные с: $url")
+    //            val response: HttpResponse = client.get(url)
+    //            if (response.status.value == 200) {
+    //                val responseBody = response.bodyAsText()
+    //                Log.d("NetworkRequest", "Данные успешно получены (статус 200): $responseBody")
+    //                // Заменил print(responseBody) на Log.d для лучшей практики логирования в Android
+    //                // Log.d("NetworkRequestRawBody", responseBody) // Можно добавить, если нужно отдельно логировать только тело
+    //            } else {
+    //                Log.e(
+    //                    "NetworkRequest",
+    //                    "Ошибка получения данных: ${response.status.value} - ${response.status.description}"
+    //                )
+    //            }
+    //        } catch (e: Exception) {
+    //            Log.e("NetworkRequest", "Ошибка сетевого запроса: ${e.localizedMessage}", e)
+    //        }
+    //    }
+    //}
 
     override fun onCleared() {
         super.onCleared()
@@ -116,7 +117,7 @@ object MainViewModel : ViewModel() {
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        MainViewModel.fetchDishData()
+        //MainViewModel.fetchDishData()
         this.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT)
         setContent {
             MyApplicationTheme {
@@ -130,7 +131,6 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun MainScreen() {
     val navController = rememberNavController()
-    val viewModel = viewModel<MainViewModel>()
     var selectedItem by rememberSaveable { mutableStateOf(0) }
 
 
@@ -237,13 +237,7 @@ fun MainComposable() {
 
 @Composable
 fun SecondComposable() {
-    Column(
-        modifier = Modifier.fillMaxSize(),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Text("Профиль (заглушка)", fontFamily = Montserrat)
-    }
+    ProfileScreenContent()
 }
 
 @Composable
