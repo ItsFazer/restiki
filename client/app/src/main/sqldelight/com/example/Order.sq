@@ -1,15 +1,14 @@
 CREATE TABLE Orders (
-id INTEGER PRIMARY KEY AUTOINCREMENT,
-dishId INTEGER NOT NULL,
-dishName TEXT NOT NULL,
-dishCost INTEGER NOT NULL
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    dishId INTEGER NOT NULL,
+    dishName TEXT NOT NULL,
+    dishCost INTEGER NOT NULL,
+    imageUrl TEXT
 );
 
-
 insertOrder:
-INSERT INTO Orders (dishId, dishName, dishCost)
-VALUES (?, ?, ?);
-
+INSERT INTO Orders (dishId, dishName, dishCost, imageUrl)
+VALUES (?, ?, ?, ?);
 
 selectAllOrders:
 SELECT * FROM Orders;

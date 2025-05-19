@@ -15,11 +15,14 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -52,6 +55,7 @@ import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerializationException
 import java.io.IOException
+
 
 // Модели данных
 @Serializable
@@ -154,7 +158,7 @@ fun DishDetailCard(
                     fontSize = 14.sp,
                     fontFamily = Montserrat,
                     modifier = Modifier.fillMaxWidth(),
-                    maxLines = 3,
+                    maxLines = 6,
                     overflow = TextOverflow.Ellipsis
                 )
 
@@ -169,7 +173,11 @@ fun DishDetailCard(
                                 onAddToCart(dish, emptyList())
                                 sheetState.hide()
                             } catch (e: Exception) {
-                                Log.e("DishDetailCard", "Ошибка при добавлении заказа: ${e.message}", e)
+                                Log.e(
+                                    "DishDetailCard",
+                                    "Ошибка при добавлении заказа: ${e.message}",
+                                    e
+                                )
                             }
                         }.invokeOnCompletion {
                             if (!sheetState.isVisible) {
@@ -200,9 +208,11 @@ fun DishDetailCard(
 @Composable
 fun OrdersSummaryCard(
     orders: List<Orders>,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    val totalCost = orders.sumOf { it.dishCost.toInt() }
 
     ModalBottomSheet(
         sheetState = sheetState,
@@ -221,14 +231,18 @@ fun OrdersSummaryCard(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "Ваш заказ",
+                        text = "Ваш заказ (${orders.size} позиции)",
                         fontSize = 24.sp,
                         fontFamily = Montserrat,
                         fontWeight = FontWeight.Bold
                     )
-                    IconButton(onClick = onDismiss) {
-                        Icon(Icons.Default.Close, contentDescription = "Закрыть")
-                    }
+                    Text(
+                        text = "Очистить",
+                        fontSize = 12.sp,
+                        color = Color.Gray,
+                        modifier = Modifier
+                            .padding(8.dp)
+                    )
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
@@ -252,17 +266,30 @@ fun OrdersSummaryCard(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(vertical = 8.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text(
-                                    text = order.dishName,
-                                    fontSize = 16.sp,
-                                    fontFamily = Montserrat,
-                                    fontWeight = FontWeight.Medium,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                    modifier = Modifier.weight(1f)
-                                )
+                                Box(modifier = Modifier.size(50.dp)) {
+                                    Image(
+                                        painter = rememberAsyncImagePainter(order.imageUrl),
+                                        contentDescription = order.dishName,
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .fillMaxSize(),
+                                        contentScale = ContentScale.Crop
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(8.dp))
+
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = order.dishName,
+                                        fontSize = 16.sp,
+                                        fontFamily = Montserrat,
+                                        fontWeight = FontWeight.Medium,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
                                 Text(
                                     text = "${order.dishCost} ₽",
                                     fontSize = 16.sp,
@@ -274,16 +301,27 @@ fun OrdersSummaryCard(
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(32.dp))
 
-                    val totalCost = orders.sumOf { it.dishCost.toInt() }
-                    Text(
-                        text = "Итого: $totalCost ₽",
-                        fontSize = 20.sp,
-                        fontFamily = Montserrat,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.align(Alignment.End)
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Button(
+                            onClick = { /* Логика оплаты */ },
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(50.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor =Color(0xFFFFA500)),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Text(
+                                text = "Заказать ${totalCost} ₽",
+                                fontSize = 16.sp,
+                                color = Color.White
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -505,9 +543,13 @@ class MainMenuViewModel : ViewModel() {
                 queries.insertOrder(
                     dishId = dish.id.toLong(),
                     dishName = dish.name,
-                    dishCost = dish.cost.toLong()
+                    dishCost = dish.cost.toLong(),
+                    imageUrl = dish.img
                 )
-                Log.d("MainMenuViewModel", "Добавлен заказ: ${dish.name}, ID: ${dish.id}, Стоимость: ${dish.cost}")
+                Log.d(
+                    "MainMenuViewModel",
+                    "Добавлен заказ: ${dish.name}, ID: ${dish.id}, Стоимость: ${dish.cost}, ImageUrl: ${dish.img}"
+                )
                 checkOrders()
 
                 // Логирование всех заказов
@@ -524,6 +566,7 @@ class MainMenuViewModel : ViewModel() {
             }
         }
     }
+
 
     override fun onCleared() {
         super.onCleared()
@@ -549,21 +592,76 @@ fun MainMenuScreen(viewModel: MainMenuViewModel = viewModel()) {
     Scaffold(
         floatingActionButton = {
             if (hasOrders) {
-                ExtendedFloatingActionButton(
-                    onClick = { showOrdersSummary = true },
-                    containerColor = Color(0xFFFFA500),
-                    contentColor = Color.White,
+                val orders = viewModel.getAllOrders()
+                val totalCost = orders.sumOf { it.dishCost.toInt() }
+                val orderCount = orders.size
+
+                Box(
                     modifier = Modifier
                         .padding(bottom = 16.dp)
-                        .width(200.dp)
+                        .width(300.dp)
                         .height(60.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(
+                            brush = Brush.horizontalGradient(
+                                colors = listOf(Color(0xFFFED253), Color(0xFFFEA24F))
+                            )
+                        )
+                        .clickable { showOrdersSummary = true }
+                        .padding(horizontal = 16.dp),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        text = "Купить",
-                        fontSize = 20.sp,
-                        fontFamily = Montserrat,
-                        fontWeight = FontWeight.Bold
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(24.dp)
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .background(Color.White.copy(alpha = 0.2f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.ShoppingCart,
+                                        contentDescription = "Корзина",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Text(
+                                        text = "$orderCount",
+                                        fontSize = 12.sp,
+                                        fontFamily = Montserrat,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White
+                                    )
+                                }
+                            }
+                            Text(
+                                text = "Корзина",
+                                fontSize = 20.sp,
+                                fontFamily = Montserrat,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                        }
+                        Text(
+                            text = "$totalCost ₽",
+                            fontSize = 20.sp,
+                            fontFamily = Montserrat,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                    }
                 }
             }
         },

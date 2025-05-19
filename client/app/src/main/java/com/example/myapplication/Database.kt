@@ -11,6 +11,7 @@ object Database_s {
 
     fun getDatabase(context: Context): Database {
         if (database == null) {
+            context.deleteDatabase("order_database.db") // Удаляем старую базу данных
             val driver: SqlDriver = AndroidSqliteDriver(Database.Schema, context, "order_database.db")
             database = Database(driver)
         }
