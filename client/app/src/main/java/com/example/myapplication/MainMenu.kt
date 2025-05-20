@@ -281,21 +281,36 @@ fun OrdersSummaryCard(
                                 Spacer(modifier = Modifier.width(8.dp))
 
                                 Column(modifier = Modifier.weight(1f)) {
+                                    Row {
+                                        Text(
+                                            text = order.dishName,
+                                            fontSize = 16.sp,
+                                            fontFamily = Montserrat,
+                                            fontWeight = FontWeight.Medium,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                        Text(
+                                            text = "${order.dishPortion} г.",
+                                            fontSize = 10.sp,
+                                            modifier = Modifier.padding(start = 3.dp, top = 2.dp),
+                                            fontWeight = FontWeight.Normal,
+                                            fontFamily = Montserrat,
+                                            color = Color(0x9E020202)
+                                        )
+                                    }
+
                                     Text(
-                                        text = order.dishName,
+                                        text = "${order.dishCost} ₽",
+                                        modifier = Modifier.padding(end = 8.dp),
                                         fontSize = 16.sp,
                                         fontFamily = Montserrat,
-                                        fontWeight = FontWeight.Medium,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
+                                        fontWeight = FontWeight.Bold
+
                                     )
+
+
                                 }
-                                Text(
-                                    text = "${order.dishCost} ₽",
-                                    fontSize = 16.sp,
-                                    fontFamily = Montserrat,
-                                    fontWeight = FontWeight.Bold
-                                )
                             }
                             Divider(color = Color.Gray.copy(alpha = 0.2f))
                         }
@@ -312,7 +327,7 @@ fun OrdersSummaryCard(
                             modifier = Modifier
                                 .weight(1f)
                                 .height(50.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor =Color(0xFFFFA500)),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFFA500)),
                             shape = RoundedCornerShape(8.dp)
                         ) {
                             Text(
@@ -544,7 +559,9 @@ class MainMenuViewModel : ViewModel() {
                     dishId = dish.id.toLong(),
                     dishName = dish.name,
                     dishCost = dish.cost.toLong(),
-                    imageUrl = dish.img
+                    imageUrl = dish.img,
+                    dishPortion = dish.portion.toLong(),
+                    counter = 1
                 )
                 Log.d(
                     "MainMenuViewModel",
