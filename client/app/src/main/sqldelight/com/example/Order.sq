@@ -17,3 +17,12 @@ SELECT * FROM Orders;
 
 deleteAllOrders:
 DELETE FROM Orders;
+
+incrementCounter:
+UPDATE Orders SET counter = counter + 1 WHERE id = ?;
+
+decrementCounter:
+UPDATE Orders SET counter = counter - 1 WHERE id = ?;
+
+deleteOrderById:
+DELETE FROM Orders WHERE id = ?;

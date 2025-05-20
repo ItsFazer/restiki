@@ -15,7 +15,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -55,7 +54,6 @@ import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerializationException
 import java.io.IOException
-
 
 // Модели данных
 @Serializable
@@ -207,12 +205,13 @@ fun DishDetailCard(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun OrdersSummaryCard(
-    orders: List<Orders>,
     onDismiss: () -> Unit,
+    viewModel: MainMenuViewModel
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-
-    val totalCost = orders.sumOf { it.dishCost.toInt() }
+    val scope = rememberCoroutineScope()
+    val orders by viewModel.orders.collectAsState()
+    val utensilsCount by viewModel.utensilsCount.collectAsState()
 
     ModalBottomSheet(
         sheetState = sheetState,
@@ -242,12 +241,19 @@ fun OrdersSummaryCard(
                         color = Color.Gray,
                         modifier = Modifier
                             .padding(8.dp)
+                            .clickable {
+                                scope.launch {
+                                    viewModel.clearDatabase()
+                                    sheetState.hide()
+                                    onDismiss()
+                                }
+                            }
                     )
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                if (orders.isEmpty()) {
+                if (orders.isEmpty() && utensilsCount == 0) {
                     Text(
                         text = "Корзина пуста",
                         fontSize = 16.sp,
@@ -261,62 +267,181 @@ fun OrdersSummaryCard(
                             .fillMaxWidth()
                             .heightIn(max = 300.dp)
                     ) {
-                        itemsIndexed(orders) { _, order ->
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 8.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Box(modifier = Modifier.size(50.dp)) {
-                                    Image(
-                                        painter = rememberAsyncImagePainter(order.imageUrl),
-                                        contentDescription = order.dishName,
-                                        modifier = Modifier
-                                            .clip(RoundedCornerShape(8.dp))
-                                            .fillMaxSize(),
-                                        contentScale = ContentScale.Crop
-                                    )
-                                }
-                                Spacer(modifier = Modifier.width(8.dp))
-
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Row {
-                                        Text(
-                                            text = order.dishName,
-                                            fontSize = 16.sp,
-                                            fontFamily = Montserrat,
-                                            fontWeight = FontWeight.Medium,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
-                                        Text(
-                                            text = "${order.dishPortion} г.",
-                                            fontSize = 10.sp,
-                                            modifier = Modifier.padding(start = 3.dp, top = 2.dp),
-                                            fontWeight = FontWeight.Normal,
-                                            fontFamily = Montserrat,
-                                            color = Color(0x9E020202)
+                        // Секция для блюд
+                        if (orders.isNotEmpty()) {
+                            item {
+                                Text(
+                                    text = "Блюда",
+                                    fontSize = 18.sp,
+                                    fontFamily = Montserrat,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(vertical = 8.dp)
+                                )
+                            }
+                            itemsIndexed(orders) { _, order ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Box(modifier = Modifier.size(50.dp)) {
+                                        Image(
+                                            painter = rememberAsyncImagePainter(order.imageUrl),
+                                            contentDescription = order.dishName,
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(8.dp))
+                                                .fillMaxSize(),
+                                            contentScale = ContentScale.Crop
                                         )
                                     }
+                                    Spacer(modifier = Modifier.width(8.dp))
 
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Row {
+                                            Text(
+                                                text = order.dishName,
+                                                fontSize = 16.sp,
+                                                fontFamily = Montserrat,
+                                                fontWeight = FontWeight.Medium,
+                                                maxLines = 1,
+                                                modifier = Modifier.fillMaxWidth(0.7F),
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                            Text(
+                                                text = "${order.dishPortion} г.",
+                                                fontSize = 10.sp,
+                                                modifier = Modifier.padding(
+                                                    start = 3.dp,
+                                                    top = 2.dp
+                                                ),
+                                                fontWeight = FontWeight.Normal,
+                                                fontFamily = Montserrat,
+                                                color = Color(0x9E020202)
+                                            )
+                                        }
+
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Text(
+                                                text = "${order.dishCost * order.counter} ₽",
+                                                fontSize = 16.sp,
+                                                fontFamily = Montserrat,
+                                                fontWeight = FontWeight.Bold
+                                            )
+
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                            ) {
+                                                IconButton(
+                                                    onClick = {
+                                                        viewModel.decrementOrderCounter(
+                                                            order.id
+                                                        )
+                                                    },
+                                                    modifier = Modifier.size(24.dp)
+                                                ) {
+                                                    Text(
+                                                        text = "–",
+                                                        fontSize = 16.sp,
+                                                        fontFamily = Montserrat,
+                                                        color = Color.Gray
+                                                    )
+                                                }
+                                                Text(
+                                                    text = "${order.counter}",
+                                                    fontSize = 16.sp,
+                                                    fontFamily = Montserrat,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                                IconButton(
+                                                    onClick = {
+                                                        viewModel.incrementOrderCounter(
+                                                            order.id
+                                                        )
+                                                    },
+                                                    modifier = Modifier.size(24.dp)
+                                                ) {
+                                                    Text(
+                                                        text = "+",
+                                                        fontSize = 16.sp,
+                                                        fontFamily = Montserrat,
+                                                        color = Color.Gray
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                        }
+                    }
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Spacer(modifier = Modifier.width(8.dp))
+
+                        Row {
+                            Text(
+                                text = "Приборы",
+                                fontSize = 16.sp,
+                                fontFamily = Montserrat,
+                                fontWeight = FontWeight.Medium,
+                                maxLines = 1,
+                            )
+
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Spacer(modifier = Modifier.weight(1f)) // Пустое место вместо стоимости
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                ) {
+                                    IconButton(
+                                        onClick = { viewModel.decrementUtensilCounter() },
+                                        modifier = Modifier.size(24.dp)
+                                    ) {
+                                        Text(
+                                            text = "–",
+                                            fontSize = 16.sp,
+                                            fontFamily = Montserrat,
+                                            color = Color.Gray
+                                        )
+                                    }
                                     Text(
-                                        text = "${order.dishCost} ₽",
-                                        modifier = Modifier.padding(end = 8.dp),
+                                        text = "$utensilsCount",
                                         fontSize = 16.sp,
                                         fontFamily = Montserrat,
                                         fontWeight = FontWeight.Bold
-
                                     )
-
-
+                                    IconButton(
+                                        onClick = { viewModel.incrementUtensilCounter() },
+                                        modifier = Modifier.size(24.dp)
+                                    ) {
+                                        Text(
+                                            text = "+",
+                                            fontSize = 16.sp,
+                                            fontFamily = Montserrat,
+                                            color = Color.Gray
+                                        )
+                                    }
                                 }
                             }
-                            Divider(color = Color.Gray.copy(alpha = 0.2f))
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(32.dp))
+
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -331,14 +456,16 @@ fun OrdersSummaryCard(
                             shape = RoundedCornerShape(8.dp)
                         ) {
                             Text(
-                                text = "Заказать ${totalCost} ₽",
+                                text = "Заказать ${orders.sumOf { it.dishCost.toInt() * it.counter }} ₽",
                                 fontSize = 16.sp,
                                 color = Color.White
                             )
                         }
                     }
                 }
+
             }
+
         }
     )
 }
@@ -452,8 +579,13 @@ class MainMenuViewModel : ViewModel() {
     val uiState: StateFlow<UiState> = _uiState
     private val _hasOrders = MutableStateFlow(false)
     val hasOrders: StateFlow<Boolean> = _hasOrders
+    private val _orders = MutableStateFlow<List<Orders>>(emptyList())
+    val orders: StateFlow<List<Orders>> = _orders
+    private val _utensilsCount = MutableStateFlow(0)
+    val utensilsCount: StateFlow<Int> = _utensilsCount
+
     private lateinit var database: Database
-    private lateinit var queries: OrderQueries
+    private lateinit var orderQueries: OrderQueries
 
     private val client = HttpClient {
         install(Logging) {
@@ -471,45 +603,46 @@ class MainMenuViewModel : ViewModel() {
 
     fun initializeDatabase(context: android.content.Context) {
         database = Database_s.getDatabase(context)
-        queries = database.orderQueries
-        clearDatabase()
+        orderQueries = database.orderQueries
         checkOrders()
+        fetchDishes()
     }
 
-    private fun clearDatabase() {
+    fun clearDatabase() {
         viewModelScope.launch {
             try {
-                queries.deleteAllOrders()
-                Log.d("MainMenuViewModel", "База данных заказов очищена")
+                orderQueries.deleteAllOrders()
+                // Сбрасываем количество приборов до 0
+                _utensilsCount.value = 0
+                Log.d("MainMenuViewModel", "База данных заказов очищена, приборы сброшены")
+                _orders.value = emptyList()
+                checkOrders()
             } catch (e: Exception) {
                 Log.e("MainMenuViewModel", "Ошибка при очистке базы данных: ${e.message}", e)
             }
         }
     }
 
-    private fun checkOrders() {
+    fun checkOrders() {
         viewModelScope.launch {
             try {
-                val orders = queries.selectAllOrders().executeAsList()
-                _hasOrders.value = orders.isNotEmpty()
+                val ordersList = orderQueries.selectAllOrders().executeAsList()
+                _hasOrders.value = ordersList.isNotEmpty()
+                _orders.value = ordersList
             } catch (e: Exception) {
                 Log.e("MainMenuViewModel", "Ошибка при проверке заказов: ${e.message}", e)
             }
         }
     }
 
-    fun getAllOrders(): List<Orders> {
-        return try {
-            queries.selectAllOrders().executeAsList()
-        } catch (e: Exception) {
-            Log.e("MainMenuViewModel", "Ошибка при получении заказов: ${e.message}", e)
-            emptyList()
-        }
-    }
-
-    init {
-        fetchDishes()
-    }
+//    fun getAllOrders(): List<Orders> {
+//        return try {
+//            orderQueries.selectAllOrders().executeAsList()
+//        } catch (e: Exception) {
+//            Log.e("MainMenuViewModel", "Ошибка при получении заказов: ${e.message}", e)
+//            emptyList()
+//        }
+//    }
 
     fun fetchDishes() {
         viewModelScope.launch {
@@ -555,35 +688,76 @@ class MainMenuViewModel : ViewModel() {
     fun addOrder(dish: Dish) {
         viewModelScope.launch {
             try {
-                queries.insertOrder(
-                    dishId = dish.id.toLong(),
-                    dishName = dish.name,
-                    dishCost = dish.cost.toLong(),
-                    imageUrl = dish.img,
-                    dishPortion = dish.portion.toLong(),
-                    counter = 1
-                )
-                Log.d(
-                    "MainMenuViewModel",
-                    "Добавлен заказ: ${dish.name}, ID: ${dish.id}, Стоимость: ${dish.cost}, ImageUrl: ${dish.img}"
-                )
-                checkOrders()
-
-                // Логирование всех заказов
-                val orders = queries.selectAllOrders().executeAsList()
-                Log.d("MainMenuViewModel", "Содержимое таблицы заказов:")
-                orders.forEach { order ->
+                val existingOrder = orderQueries.selectAllOrders().executeAsList()
+                    .find { it.dishId == dish.id.toLong() }
+                if (existingOrder != null) {
+                    orderQueries.incrementCounter(existingOrder.id)
+                    Log.d("MainMenuViewModel", "Увеличено количество для ${dish.name}")
+                } else {
+                    orderQueries.insertOrder(
+                        dishId = dish.id.toLong(),
+                        dishName = dish.name,
+                        dishCost = dish.cost.toLong(),
+                        imageUrl = dish.img,
+                        dishPortion = dish.portion.toLong(),
+                        counter = 1
+                    )
                     Log.d(
                         "MainMenuViewModel",
-                        "Заказ ID: ${order.id}, Блюдо: ${order.dishName}, Стоимость: ${order.dishCost}"
+                        "Добавлен заказ: ${dish.name}, ID: ${dish.id}, Стоимость: ${dish.cost}, ImageUrl: ${dish.img}"
                     )
                 }
+                checkOrders()
             } catch (e: Exception) {
                 Log.e("MainMenuViewModel", "Ошибка при работе с базой данных: ${e.message}", e)
             }
         }
     }
 
+    fun incrementOrderCounter(orderId: Long) {
+        viewModelScope.launch {
+            try {
+                orderQueries.incrementCounter(orderId)
+                Log.d("MainMenuViewModel", "Увеличено количество для заказа ID: $orderId")
+                checkOrders()
+            } catch (e: Exception) {
+                Log.e("MainMenuViewModel", "Ошибка при увеличении количества: ${e.message}", e)
+            }
+        }
+    }
+
+    fun decrementOrderCounter(orderId: Long) {
+        viewModelScope.launch {
+            try {
+                val order = orderQueries.selectAllOrders().executeAsList().find { it.id == orderId }
+                if (order != null) {
+                    if (order.counter > 1) {
+                        orderQueries.decrementCounter(orderId)
+                        Log.d("MainMenuViewModel", "Уменьшено количество для заказа ID: $orderId")
+                    } else {
+                        orderQueries.deleteOrderById(orderId)
+                        Log.d(
+                            "MainMenuViewModel",
+                            "Удален заказ ID: $orderId, так как количество стало 0"
+                        )
+                    }
+                    checkOrders()
+                }
+            } catch (e: Exception) {
+                Log.e("MainMenuViewModel", "Ошибка при уменьшении количества: ${e.message}", e)
+            }
+        }
+    }
+
+    fun incrementUtensilCounter() {
+        _utensilsCount.value += 1
+    }
+
+    fun decrementUtensilCounter() {
+        if (_utensilsCount.value > 0) {
+            _utensilsCount.value -= 1
+        }
+    }
 
     override fun onCleared() {
         super.onCleared()
@@ -601,7 +775,6 @@ fun MainMenuScreen(viewModel: MainMenuViewModel = viewModel()) {
     val hasOrders by viewModel.hasOrders.collectAsState()
     val context = LocalContext.current
 
-    // Инициализация базы данных
     LaunchedEffect(Unit) {
         viewModel.initializeDatabase(context)
     }
@@ -609,8 +782,8 @@ fun MainMenuScreen(viewModel: MainMenuViewModel = viewModel()) {
     Scaffold(
         floatingActionButton = {
             if (hasOrders) {
-                val orders = viewModel.getAllOrders()
-                val totalCost = orders.sumOf { it.dishCost.toInt() }
+                val orders = viewModel.orders.collectAsState().value
+                val totalCost = orders.sumOf { it.dishCost.toInt() * it.counter }
                 val orderCount = orders.size
 
                 Box(
@@ -740,7 +913,6 @@ fun MainMenuScreen(viewModel: MainMenuViewModel = viewModel()) {
                 )
             }
 
-            // Отображение контента в зависимости от состояния
             when (uiState) {
                 UiState.Loading -> {
                     item(span = { GridItemSpan(maxLineSpan) }) {
@@ -814,8 +986,8 @@ fun MainMenuScreen(viewModel: MainMenuViewModel = viewModel()) {
 
     if (showOrdersSummary) {
         OrdersSummaryCard(
-            orders = viewModel.getAllOrders(),
-            onDismiss = { showOrdersSummary = false }
+            onDismiss = { showOrdersSummary = false },
+            viewModel = viewModel
         )
     }
 }
