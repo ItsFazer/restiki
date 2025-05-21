@@ -42,6 +42,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.example.myapplication.ui.theme.MyApplicationTheme
+import com.example.myapplication.ui.theme.ThirdScreen
 
 
 val Montserrat = FontFamily(
@@ -173,13 +174,7 @@ fun SecondComposable() {
 
 @Composable
 fun ThirdComposable() {
-    Column(
-        modifier = Modifier.fillMaxSize(),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Text("Третий экран (заглушка)", fontFamily = Montserrat)
-    }
+    ThirdScreen()
 }
 
 sealed class NavigationItem(var route: String, var icon: Int?, var title: String) {

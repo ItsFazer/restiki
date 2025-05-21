@@ -1,5 +1,4 @@
-package com.example.myapplication
-
+// This is an example, you need to ensure your actual UserPreferences is correct.
 import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
@@ -10,53 +9,52 @@ import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
-val Context.userDataStore: DataStore<Preferences> by preferencesDataStore(name = "auth")
+val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "user_prefs")
 
-class UserPreferences(context: Context) {
-    private val dataStore: DataStore<Preferences> = context.userDataStore
+class UserPreferences(private val context: Context) {
 
-    companion object {
-        private val KEY_USER_ID = intPreferencesKey("user_id")
-        private val KEY_USERNAME = stringPreferencesKey("username")
-        private val KEY_EMAIL = stringPreferencesKey("email")
-        private val KEY_CREATED_AT = stringPreferencesKey("created_at")
-        private val KEY_TOKEN = stringPreferencesKey("token")
+    // Define keys for your preferences
+    private object PreferencesKeys {
+        val USER_ID = intPreferencesKey("user_id")
+        val USERNAME = stringPreferencesKey("username")
+        val EMAIL = stringPreferencesKey("email")
+        val TOKEN = stringPreferencesKey("token")
+        // Add other keys as needed
     }
 
-    suspend fun saveUserData(id: Int, username: String, email: String, createdAt: String, token: String? = null) {
-        dataStore.edit { preferences ->
-            preferences[KEY_USER_ID] = id
-            preferences[KEY_USERNAME] = username
-            preferences[KEY_EMAIL] = email
-            preferences[KEY_CREATED_AT] = createdAt
-            if (token != null) {
-                preferences[KEY_TOKEN] = token
-            }
+    val id: Flow<Int?> = context.dataStore.data
+        .map { preferences ->
+            preferences[PreferencesKeys.USER_ID]
+        }
+
+    val username: Flow<String?> = context.dataStore.data
+        .map { preferences ->
+            preferences[PreferencesKeys.USERNAME]
+        }
+
+    val email: Flow<String?> = context.dataStore.data
+        .map { preferences ->
+            preferences[PreferencesKeys.EMAIL]
+        }
+
+    val token: Flow<String?> = context.dataStore.data
+        .map { preferences ->
+            preferences[PreferencesKeys.TOKEN]
+        }
+
+
+    suspend fun saveUserData(id: Int, username: String, email: String, createdAt: String, token: String) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferencesKeys.USER_ID] = id
+            preferences[PreferencesKeys.USERNAME] = username
+            preferences[PreferencesKeys.EMAIL] = email
+            preferences[PreferencesKeys.TOKEN] = token
+            // Save createdAt if you need it in preferences
         }
     }
 
-    val userId: Flow<Int?> = dataStore.data.map { preferences ->
-        preferences[KEY_USER_ID]
-    }
-
-    val username: Flow<String?> = dataStore.data.map { preferences ->
-        preferences[KEY_USERNAME]
-    }
-
-    val email: Flow<String?> = dataStore.data.map { preferences ->
-        preferences[KEY_EMAIL]
-    }
-
-    val createdAt: Flow<String?> = dataStore.data.map { preferences ->
-        preferences[KEY_CREATED_AT]
-    }
-
-    val token: Flow<String?> = dataStore.data.map { preferences ->
-        preferences[KEY_TOKEN]
-    }
-
     suspend fun clearUserData() {
-        dataStore.edit { preferences ->
+        context.dataStore.edit { preferences ->
             preferences.clear()
         }
     }

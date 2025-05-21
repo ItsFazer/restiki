@@ -1,5 +1,6 @@
 package com.example.myapplication
 
+import UserPreferences
 import android.util.Log
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -486,9 +487,9 @@ fun OrdersSummaryCard(
                                     showLoginDialog = true
                                 } else {
                                     scope.launch {
-                                        val userId = userPreferences.userId.firstOrNull()
+                                        val userId = userPreferences.id.firstOrNull()
                                         val tokenValue = userPreferences.token.firstOrNull()
-
+                                        bonus_card.addPoints((0.05 * orders.sumOf { it.dishCost.toInt() * it.counter }).toInt())
                                             orders.forEachIndexed { index, order ->
                                                 Log.d(
                                                     "OrdersSummaryCard",

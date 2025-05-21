@@ -1,5 +1,6 @@
 package com.example.myapplication
 
+import UserPreferences
 import android.util.Log
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -9,7 +10,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -21,10 +21,10 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.myapplication.ui.theme.MyApplicationTheme
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewmodel.compose.viewModel
 import io.ktor.client.*
 import io.ktor.client.engine.okhttp.*
 import io.ktor.client.plugins.contentnegotiation.*
@@ -32,12 +32,75 @@ import io.ktor.client.request.*
 import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
 import io.ktor.client.call.body
+import io.ktor.client.plugins.logging.LogLevel
+import io.ktor.client.plugins.logging.Logger
+import io.ktor.client.plugins.logging.Logging
 import io.ktor.client.request.forms.FormDataContent
+import io.ktor.client.statement.HttpResponse
+import io.ktor.client.statement.bodyAsText
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+class OrdersViewModel : ViewModel() {
+    private val client = HttpClient {
+        install(Logging) {
+            logger = object : Logger {
+                override fun log(message: String) {
+                    Log.d("KtorLogger", message)
+                }
+            }
+            level = LogLevel.ALL
+        }
+        install(ContentNegotiation) {
+            json(Json {
+                ignoreUnknownKeys = true
+                coerceInputValues = true
+            })
+        }
+    }
 
+    private val _orders = MutableStateFlow<List<Order>>(emptyList())
+    val orders: StateFlow<List<Order>> = _orders
+
+    suspend fun fetchOrders(user_id: Int) {
+        if (user_id == 0) { // Prevent API call with invalid user_id
+            Log.e("OrdersViewModel", "Invalid user ID (0). Not fetching orders.")
+            _orders.value = emptyList()
+            return
+        }
+        try {
+            val response: HttpResponse = client.get("http://5.167.254.44:6567/user/${user_id}/orders")
+            if (response.status == HttpStatusCode.OK) {
+                val list = response.body<List<Order>>()
+                _orders.value = list
+                Log.d("OrdersViewModel", "Fetched orders: $list")
+            } else {
+                Log.e("OrdersViewModel", "Failed to fetch orders: ${response.status}. Body: ${response.bodyAsText()}") // Log response body for debug
+                _orders.value = emptyList() // Clear orders on error
+            }
+        } catch (e: Exception) {
+            Log.e("OrdersViewModel", "Error fetching orders: ${e.message}", e)
+            _orders.value = emptyList()
+        }
+    }
+}
+
+@Serializable
+data class DishForOrder(
+    val dish_id: Int,
+    val quantity: Int
+)
+
+@Serializable
+data class Order(
+    val id: Int,
+    val user_id: Int,
+    val order_data: String = "N/A",
+    val status: String,
+    val dishes: List<DishForOrder>
+)
 
 @Serializable
 data class RegisterRequest(
@@ -74,21 +137,34 @@ data class MenuItemData(
     val icon: ImageVector, val label: String, val route: String? = null
 )
 
-@Composable
-fun ProfileScreenContent(userPreferences: UserPreferences = UserPreferences(LocalContext.current)) {
-    val token = userPreferences.token.collectAsState(initial = null)
 
-    if (token.value != null) {
-        AuthorizedProfileScreen(userPreferences)
+@Composable
+fun ProfileScreenContent(
+    userPreferences: UserPreferences = UserPreferences(LocalContext.current),
+    ordersViewModel: OrdersViewModel = viewModel()
+) {
+    val token by userPreferences.token.collectAsState(initial = null)
+    val orders by ordersViewModel.orders.collectAsState()
+
+    if (token != null) {
+        AuthorizedProfileScreen(userPreferences, ordersViewModel, orders)
     } else {
         UnauthorizedProfileScreen(userPreferences)
     }
 }
 
 @Composable
-fun AuthorizedProfileScreen(userPreferences: UserPreferences) {
-    val username = userPreferences.username.collectAsState(initial = "Гость")
-    val email = userPreferences.email.collectAsState(initial = "Нет email")
+fun AuthorizedProfileScreen(
+    userPreferences: UserPreferences,
+    ordersViewModel: OrdersViewModel,
+    orders: List<Order>
+) {
+    val username by userPreferences.username.collectAsState(initial = "Гость")
+    val email by userPreferences.email.collectAsState(initial = "Нет email")
+    val userId by userPreferences.id.collectAsState(initial = 0) // Collects as Int? or Int, handle nullability
+    val coroutineScope = rememberCoroutineScope()
+    var showOrdersDialog by remember { mutableStateOf(false) }
+
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
@@ -99,19 +175,22 @@ fun AuthorizedProfileScreen(userPreferences: UserPreferences) {
         item { Spacer(modifier = Modifier.height(16.dp)) }
 
         item {
-            ProfileHeader(name = username.value.toString(),
-                phone = email.value.toString(),
-                onNotificationClick = {})
+            ProfileHeader(
+                name = username ?: "Гость",
+                phone = email ?: "Нет email",
+                onNotificationClick = {}
+            )
         }
 
         item {
-            val currentBonusPoints by bonus_card.balance.collectAsState()
+            val currentBonusPoints by remember { mutableStateOf(0) }
 
-            BonusCard(bonusPercentage = "5%",
+            BonusCard(
+                bonusPercentage = "5%",
                 bonusPoints = currentBonusPoints,
-                onCashbackButtonClick = {})
+                onCashbackButtonClick = {}
+            )
         }
-
 
         val menuItems = listOf(
             MenuItemData(Icons.Default.ShoppingCart, "Мои заказы"),
@@ -120,14 +199,128 @@ fun AuthorizedProfileScreen(userPreferences: UserPreferences) {
         )
 
         items(menuItems) { item ->
-            MenuItemRow(icon = item.icon,
+            MenuItemRow(
+                icon = item.icon,
                 label = item.label,
-                onClick = { /* TODO: обработка клика по пункту ${item.label} */ })
+                onClick = {
+                    if (item.label == "Мои заказы") {
+                        coroutineScope.launch {
+                            userId?.let { id ->
+                                if (id != 0) {
+                                    ordersViewModel.fetchOrders(id)
+                                    showOrdersDialog = true
+                                } else {
+                                    Log.e("AuthorizedProfileScreen", "Cannot fetch orders: User ID is 0, which is likely an unauthenticated or invalid ID.")
+                                    // Consider showing a SnackBar or Toast to the user here.
+                                }
+                            } ?: run {
+                                Log.e("AuthorizedProfileScreen", "Cannot fetch orders: User ID is null.")
+                            }
+                        }
+                    }
+                }
+            )
         }
 
         item { Spacer(modifier = Modifier.height(80.dp)) }
     }
+
+    if (showOrdersDialog) {
+        OrdersDialog(orders = orders, onDismiss = { showOrdersDialog = false })
+    }
 }
+
+@Composable
+fun OrdersDialog(orders: List<Order>, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = "Мои заказы",
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold,
+                color = DarkText,
+                fontFamily = Montserrat
+            )
+        },
+        text = {
+            if (orders.isEmpty()) {
+                Text(
+                    text = "У вас пока нет заказов.",
+                    fontSize = 16.sp,
+                    color = GreyText,
+                    fontFamily = Montserrat
+                )
+            } else {
+                LazyColumn {
+                    items(orders) { order ->
+                        OrderCard(order = order)
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text(
+                    text = "Закрыть",
+                    color = ActivateButtonColor,
+                    fontFamily = Montserrat
+                )
+            }
+        },
+        containerColor = Color.White,
+        shape = RoundedCornerShape(12.dp)
+    )
+}
+
+@Composable
+fun OrderCard(order: Order) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(8.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp)
+        ) {
+            Text(
+                text = "Заказ #${order.id}",
+                fontWeight = FontWeight.Bold,
+                fontSize = 18.sp,
+                fontFamily = Montserrat
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = "Дата: ${order.order_data}",
+                fontSize = 14.sp,
+                color = GreyText,
+                fontFamily = Montserrat
+            )
+            Text(
+                text = "Статус: ${order.status}",
+                fontSize = 14.sp,
+                color = GreyText,
+                fontFamily = Montserrat
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "Блюда:",
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 16.sp,
+                fontFamily = Montserrat
+            )
+            order.dishes.forEach { dish ->
+                Text(
+                    text = "  - Dish ID: ${dish.dish_id}, Количество: ${dish.quantity}",
+                    fontSize = 14.sp,
+                    fontFamily = Montserrat
+                )
+            }
+        }
+    }
+}
+
 
 @Composable
 fun UnauthorizedProfileScreen(userPreferences: UserPreferences) {
@@ -276,8 +469,9 @@ fun LoginDialog(userPreferences: UserPreferences, onDismiss: () -> Unit) {
                             )
 
                             onDismiss()
+                        } catch (e: Exception) {
+                            Log.e("LoginDialog", "Error during login: ${e.message}", e)
                         } finally {
-                            client.close()
                         }
                     }
                 }
@@ -372,7 +566,7 @@ fun RegisterDialog(userPreferences: UserPreferences, onDismiss: () -> Unit) {
                                 id = registerResponse.user.id,
                                 username = registerResponse.user.username,
                                 email = registerResponse.user.email,
-                                createdAt = "2025-05-21T12:15:00Z",
+                                createdAt = "2025-05-21T12:15:00Z", // Assuming this is a static value for now
                                 token = registerResponse.token.access_token
                             )
                             Log.d(
@@ -381,8 +575,11 @@ fun RegisterDialog(userPreferences: UserPreferences, onDismiss: () -> Unit) {
                             )
 
                             onDismiss()
+                        } catch (e: Exception) {
+                            Log.e("RegisterDialog", "Error during registration: ${e.message}", e)
+                            // Optionally show an error message to the user
                         } finally {
-                            client.close()
+                            // client.close() // Don't close the client immediately, it can be reused
                         }
                     }
                 }
@@ -479,7 +676,7 @@ fun BonusCard(bonusPercentage: String, bonusPoints: Int, onCashbackButtonClick: 
                     fontWeight = FontWeight.Bold,
                     color = DarkText,
                     fontFamily = Montserrat,
-                    )
+                )
             }
         }
     }
