@@ -54,6 +54,7 @@ import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerializationException
 import java.io.IOException
+import com.example.myapplication.BonusCard
 
 // Модели данных
 @Serializable
@@ -212,7 +213,7 @@ fun OrdersSummaryCard(
     val scope = rememberCoroutineScope()
     val orders by viewModel.orders.collectAsState()
     val utensilsCount by viewModel.utensilsCount.collectAsState()
-
+    val bonusBalance: StateFlow<Int> = bonus_card.balance
     ModalBottomSheet(
         sheetState = sheetState,
         onDismissRequest = onDismiss,
@@ -442,13 +443,14 @@ fun OrdersSummaryCard(
                     }
 
 
-
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Button(
-                            onClick = { /* Логика оплаты */ },
+                            onClick = {
+                                bonus_card.addPoints((orders.sumOf { it.dishCost.toInt() * it.counter } * 0.05).toInt())
+                            },
                             modifier = Modifier
                                 .weight(1f)
                                 .height(50.dp),

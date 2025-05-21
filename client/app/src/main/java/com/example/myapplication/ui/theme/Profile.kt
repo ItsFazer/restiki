@@ -33,6 +33,7 @@ import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
 import io.ktor.client.call.body
 import io.ktor.client.request.forms.FormDataContent
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -40,35 +41,27 @@ import kotlinx.serialization.json.Json
 
 @Serializable
 data class RegisterRequest(
-    val username: String,
-    val email: String,
-    val password: String
+    val username: String, val email: String, val password: String
 )
 
 @Serializable
 data class RegisterResponse(
-    val user: LoginUser,
-    val token: Token
+    val user: LoginUser, val token: Token
 )
 
 @Serializable
 data class Token(
-    val access_token: String,
-    val token_type: String
+    val access_token: String, val token_type: String
 )
 
 @Serializable
 data class LoginUser(
-    val id: Int,
-    val username: String,
-    val email: String,
-    val password: String
+    val id: Int, val username: String, val email: String, val password: String
 )
 
 @Serializable
 data class LoginResponse(
-    val user: LoginUser,
-    val token: Token
+    val user: LoginUser, val token: Token
 )
 
 // Цвета и стили
@@ -78,9 +71,7 @@ val GreyText = Color(0xFF757575)
 val DarkText = Color(0xFF333333)
 
 data class MenuItemData(
-    val icon: ImageVector,
-    val label: String,
-    val route: String? = null
+    val icon: ImageVector, val label: String, val route: String? = null
 )
 
 @Composable
@@ -98,7 +89,6 @@ fun ProfileScreenContent(userPreferences: UserPreferences = UserPreferences(Loca
 fun AuthorizedProfileScreen(userPreferences: UserPreferences) {
     val username = userPreferences.username.collectAsState(initial = "Гость")
     val email = userPreferences.email.collectAsState(initial = "Нет email")
-
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
@@ -109,41 +99,30 @@ fun AuthorizedProfileScreen(userPreferences: UserPreferences) {
         item { Spacer(modifier = Modifier.height(16.dp)) }
 
         item {
-            ProfileHeader(
-                name = username.value ?: "Гость",
+            ProfileHeader(name = username.value ?: "Гость",
                 phone = email.value ?: "Нет email",
-                onNotificationClick = { /* TODO: обработка клика по колокольчику */ }
-            )
+                onNotificationClick = { /* TODO: обработка клика по колокольчику */ })
         }
 
         item {
-            BonusCard(
-                bonusPercentage = "5%",
-                bonusPoints = 0,
-                onCashbackButtonClick = { /* TODO: обработка клика по кнопке Кэшбэк */ }
-            )
+            val currentBonusPoints by bonus_card.balance.collectAsState()
+
+            BonusCard(bonusPercentage = "5%",
+                bonusPoints = currentBonusPoints,
+                onCashbackButtonClick = { /* TODO: обработка клика по кнопке Кэшбэк */ })
         }
 
-        item {
-            ActivateBonusesSection(
-                onActivateClick = { /* TODO: обработка клика по Активировать баллы */ }
-            )
-        }
 
         val menuItems = listOf(
             MenuItemData(Icons.Default.ShoppingCart, "Мои заказы"),
-            MenuItemData(Icons.Default.LocationOn, "Мои адреса"),
             MenuItemData(Icons.Default.Person, "Мои данные"),
-            MenuItemData(Icons.Default.Add, "Банковские карты"),
             MenuItemData(Icons.Default.Home, "Екатеринбург | RU"),
         )
 
         items(menuItems) { item ->
-            MenuItemRow(
-                icon = item.icon,
+            MenuItemRow(icon = item.icon,
                 label = item.label,
-                onClick = { /* TODO: обработка клика по пункту ${item.label} */ }
-            )
+                onClick = { /* TODO: обработка клика по пункту ${item.label} */ })
         }
 
         item { Spacer(modifier = Modifier.height(80.dp)) }
@@ -215,17 +194,12 @@ fun UnauthorizedProfileScreen(userPreferences: UserPreferences) {
     }
 
     if (showLoginDialog) {
-        LoginDialog(
-            userPreferences = userPreferences,
-            onDismiss = { showLoginDialog = false }
-        )
+        LoginDialog(userPreferences = userPreferences, onDismiss = { showLoginDialog = false })
     }
 
     if (showRegisterDialog) {
-        RegisterDialog(
-            userPreferences = userPreferences,
-            onDismiss = { showRegisterDialog = false }
-        )
+        RegisterDialog(userPreferences = userPreferences,
+            onDismiss = { showRegisterDialog = false })
     }
 }
 
@@ -247,94 +221,81 @@ fun LoginDialog(userPreferences: UserPreferences, onDismiss: () -> Unit) {
         }
     }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = {
-            Text(
-                text = "Вход",
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold,
-                color = DarkText,
-                fontFamily = Montserrat
+    AlertDialog(onDismissRequest = onDismiss, title = {
+        Text(
+            text = "Вход",
+            fontSize = 20.sp,
+            fontWeight = FontWeight.Bold,
+            color = DarkText,
+            fontFamily = Montserrat
+        )
+    }, text = {
+        Column {
+            OutlinedTextField(value = username,
+                onValueChange = { username = it },
+                label = { Text("Имя пользователя", fontFamily = Montserrat) },
+                modifier = Modifier.fillMaxWidth(),
+                textStyle = LocalTextStyle.current.copy(fontFamily = Montserrat)
             )
-        },
-        text = {
-            Column {
-                OutlinedTextField(
-                    value = username,
-                    onValueChange = { username = it },
-                    label = { Text("Имя пользователя", fontFamily = Montserrat) },
-                    modifier = Modifier.fillMaxWidth(),
-                    textStyle = LocalTextStyle.current.copy(fontFamily = Montserrat)
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                OutlinedTextField(
-                    value = password,
-                    onValueChange = { password = it },
-                    label = { Text("Пароль", fontFamily = Montserrat) },
-                    modifier = Modifier.fillMaxWidth(),
-                    textStyle = LocalTextStyle.current.copy(fontFamily = Montserrat)
-                )
-            }
-        },
-        confirmButton = {
-            Button(
-                onClick = {
-                    if (username.isNotBlank() && password.isNotBlank()) {
-                        coroutineScope.launch {
-                            try {
-                                val requestBody = parametersOf(
-                                    "grant_type" to listOf("password"),
-                                    "username" to listOf(username),
-                                    "password" to listOf(password),
-                                    "scope" to listOf(""),
-                                    "client_id" to listOf("string"),
-                                    "client_secret" to listOf("string")
-                                )
+            Spacer(modifier = Modifier.height(8.dp))
+            OutlinedTextField(value = password,
+                onValueChange = { password = it },
+                label = { Text("Пароль", fontFamily = Montserrat) },
+                modifier = Modifier.fillMaxWidth(),
+                textStyle = LocalTextStyle.current.copy(fontFamily = Montserrat)
+            )
+        }
+    }, confirmButton = {
+        Button(
+            onClick = {
+                if (username.isNotBlank() && password.isNotBlank()) {
+                    coroutineScope.launch {
+                        try {
+                            val requestBody = parametersOf(
+                                "grant_type" to listOf("password"),
+                                "username" to listOf(username),
+                                "password" to listOf(password),
+                                "scope" to listOf(""),
+                                "client_id" to listOf("string"),
+                                "client_secret" to listOf("string")
+                            )
 
-                                val response = client.post("http://5.167.254.44:6567/login") {
-                                    contentType(ContentType.Application.FormUrlEncoded)
-                                    setBody(FormDataContent(requestBody))
-                                }
-
-                                val loginResponse: LoginResponse = response.body()
-
-                                userPreferences.saveUserData(
-                                    id = loginResponse.user.id,
-                                    username = loginResponse.user.username,
-                                    email = loginResponse.user.email,
-                                    createdAt = "2025-05-21T12:15:00Z",
-                                    token = loginResponse.token.access_token
-                                )
-
-                                onDismiss()
-                            }  finally {
-                                client.close()
+                            val response = client.post("http://5.167.254.44:6567/login") {
+                                contentType(ContentType.Application.FormUrlEncoded)
+                                setBody(FormDataContent(requestBody))
                             }
+
+                            val loginResponse: LoginResponse = response.body()
+
+                            userPreferences.saveUserData(
+                                id = loginResponse.user.id,
+                                username = loginResponse.user.username,
+                                email = loginResponse.user.email,
+                                createdAt = "2025-05-21T12:15:00Z",
+                                token = loginResponse.token.access_token
+                            )
+
+                            onDismiss()
+                        } finally {
+                            client.close()
                         }
                     }
-                },
-                colors = ButtonDefaults.buttonColors(containerColor = ActivateButtonColor),
-                shape = RoundedCornerShape(8.dp)
-            ) {
-                Text(
-                    text = "Войти",
-                    color = Color.White,
-                    fontFamily = Montserrat
-                )
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(
-                    text = "Отмена",
-                    color = GreyText,
-                    fontFamily = Montserrat
-                )
-            }
-        },
-        containerColor = Color.White,
-        shape = RoundedCornerShape(12.dp)
+                }
+            },
+            colors = ButtonDefaults.buttonColors(containerColor = ActivateButtonColor),
+            shape = RoundedCornerShape(8.dp)
+        ) {
+            Text(
+                text = "Войти", color = Color.White, fontFamily = Montserrat
+            )
+        }
+    }, dismissButton = {
+        TextButton(onClick = onDismiss) {
+            Text(
+                text = "Отмена", color = GreyText, fontFamily = Montserrat
+            )
+        }
+    }, containerColor = Color.White, shape = RoundedCornerShape(12.dp)
     )
 }
 
@@ -357,102 +318,89 @@ fun RegisterDialog(userPreferences: UserPreferences, onDismiss: () -> Unit) {
         }
     }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = {
-            Text(
-                text = "Регистрация",
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold,
-                color = DarkText,
-                fontFamily = Montserrat
+    AlertDialog(onDismissRequest = onDismiss, title = {
+        Text(
+            text = "Регистрация",
+            fontSize = 20.sp,
+            fontWeight = FontWeight.Bold,
+            color = DarkText,
+            fontFamily = Montserrat
+        )
+    }, text = {
+        Column {
+            OutlinedTextField(value = username,
+                onValueChange = { username = it },
+                label = { Text("Имя пользователя", fontFamily = Montserrat) },
+                modifier = Modifier.fillMaxWidth(),
+                textStyle = LocalTextStyle.current.copy(fontFamily = Montserrat)
             )
-        },
-        text = {
-            Column {
-                OutlinedTextField(
-                    value = username,
-                    onValueChange = { username = it },
-                    label = { Text("Имя пользователя", fontFamily = Montserrat) },
-                    modifier = Modifier.fillMaxWidth(),
-                    textStyle = LocalTextStyle.current.copy(fontFamily = Montserrat)
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                OutlinedTextField(
-                    value = email,
-                    onValueChange = { email = it },
-                    label = { Text("Email", fontFamily = Montserrat) },
-                    modifier = Modifier.fillMaxWidth(),
-                    textStyle = LocalTextStyle.current.copy(fontFamily = Montserrat)
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                OutlinedTextField(
-                    value = password,
-                    onValueChange = { password = it },
-                    label = { Text("Пароль", fontFamily = Montserrat) },
-                    modifier = Modifier.fillMaxWidth(),
-                    textStyle = LocalTextStyle.current.copy(fontFamily = Montserrat)
-                )
-            }
-        },
-        confirmButton = {
-            Button(
-                onClick = {
-                    if (username.isNotBlank() && email.isNotBlank() && password.isNotBlank()) {
-                        coroutineScope.launch {
-                            try {
-                                val requestBody = RegisterRequest(
-                                    username = username,
-                                    email = email,
-                                    password = password
-                                )
+            Spacer(modifier = Modifier.height(8.dp))
+            OutlinedTextField(value = email,
+                onValueChange = { email = it },
+                label = { Text("Email", fontFamily = Montserrat) },
+                modifier = Modifier.fillMaxWidth(),
+                textStyle = LocalTextStyle.current.copy(fontFamily = Montserrat)
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            OutlinedTextField(value = password,
+                onValueChange = { password = it },
+                label = { Text("Пароль", fontFamily = Montserrat) },
+                modifier = Modifier.fillMaxWidth(),
+                textStyle = LocalTextStyle.current.copy(fontFamily = Montserrat)
+            )
+        }
+    }, confirmButton = {
+        Button(
+            onClick = {
+                if (username.isNotBlank() && email.isNotBlank() && password.isNotBlank()) {
+                    coroutineScope.launch {
+                        try {
+                            val requestBody = RegisterRequest(
+                                username = username, email = email, password = password
+                            )
 
-                                val response = client.post("http://5.167.254.44:6567/register") {
-                                    contentType(ContentType.Application.Json)
-                                    setBody(requestBody)
-                                }
-
-
-                                val registerResponse: RegisterResponse = response.body()
-                                Log.d("RegisterDebug", "Deserialized response: $registerResponse")
-
-                                userPreferences.saveUserData(
-                                    id = registerResponse.user.id,
-                                    username = registerResponse.user.username,
-                                    email = registerResponse.user.email,
-                                    createdAt = "2025-05-21T12:15:00Z",
-                                    token = registerResponse.token.access_token
-                                )
-                                Log.d("RegisterDebug", "id=${registerResponse.user.id}, username=${registerResponse.user.username}, email=${registerResponse.user.email}, token=${registerResponse.token.access_token}")
-
-                                onDismiss()
-                            }  finally {
-                                client.close()
+                            val response = client.post("http://5.167.254.44:6567/register") {
+                                contentType(ContentType.Application.Json)
+                                setBody(requestBody)
                             }
+
+
+                            val registerResponse: RegisterResponse = response.body()
+                            Log.d("RegisterDebug", "Deserialized response: $registerResponse")
+
+                            userPreferences.saveUserData(
+                                id = registerResponse.user.id,
+                                username = registerResponse.user.username,
+                                email = registerResponse.user.email,
+                                createdAt = "2025-05-21T12:15:00Z",
+                                token = registerResponse.token.access_token
+                            )
+                            Log.d(
+                                "RegisterDebug",
+                                "id=${registerResponse.user.id}, username=${registerResponse.user.username}, email=${registerResponse.user.email}, token=${registerResponse.token.access_token}"
+                            )
+
+                            onDismiss()
+                        } finally {
+                            client.close()
                         }
                     }
-                },
-                colors = ButtonDefaults.buttonColors(containerColor = ActivateButtonColor),
-                shape = RoundedCornerShape(8.dp)
-            ) {
-                Text(
-                    text = "Зарегистрироваться",
-                    color = Color.White,
-                    fontFamily = Montserrat
-                )
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(
-                    text = "Отмена",
-                    color = GreyText,
-                    fontFamily = Montserrat
-                )
-            }
-        },
-        containerColor = Color.White,
-        shape = RoundedCornerShape(12.dp)
+                }
+            },
+            colors = ButtonDefaults.buttonColors(containerColor = ActivateButtonColor),
+            shape = RoundedCornerShape(8.dp)
+        ) {
+            Text(
+                text = "Зарегистрироваться", color = Color.White, fontFamily = Montserrat
+            )
+        }
+    }, dismissButton = {
+        TextButton(onClick = onDismiss) {
+            Text(
+                text = "Отмена", color = GreyText, fontFamily = Montserrat
+            )
+        }
+    }, containerColor = Color.White, shape = RoundedCornerShape(12.dp)
     )
 }
 
@@ -472,10 +420,7 @@ fun ProfileHeader(name: String, phone: String, onNotificationClick: () -> Unit) 
                 fontFamily = Montserrat
             )
             Text(
-                text = phone,
-                fontSize = 12.sp,
-                color = GreyText,
-                fontFamily = Montserrat
+                text = phone, fontSize = 12.sp, color = GreyText, fontFamily = Montserrat
             )
         }
         IconButton(onClick = onNotificationClick) {
@@ -490,6 +435,7 @@ fun ProfileHeader(name: String, phone: String, onNotificationClick: () -> Unit) 
 
 @Composable
 fun BonusCard(bonusPercentage: String, bonusPoints: Int, onCashbackButtonClick: () -> Unit) {
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -514,7 +460,7 @@ fun BonusCard(bonusPercentage: String, bonusPoints: Int, onCashbackButtonClick: 
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "Друг $bonusPercentage",
+                        text = "Кэшбэк: $bonusPercentage",
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Medium,
                         color = DarkText,
@@ -532,77 +478,10 @@ fun BonusCard(bonusPercentage: String, bonusPoints: Int, onCashbackButtonClick: 
                     fontSize = 28.sp,
                     fontWeight = FontWeight.Bold,
                     color = DarkText,
-                    fontFamily = Montserrat
-                )
-                Row(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(Color.White)
-                        .clickable(onClick = onCashbackButtonClick)
-                        .padding(horizontal = 12.dp, vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    Text(
-                        text = bonusPercentage,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = ActivateButtonColor,
-                        fontFamily = Montserrat
+                    fontFamily = Montserrat,
                     )
-                    Text(
-                        text = "Кэшбэк",
-                        fontSize = 12.sp,
-                        color = GreyText,
-                        fontFamily = Montserrat
-                    )
-                }
             }
         }
-    }
-}
-
-@Composable
-fun ActivateBonusesSection(onActivateClick: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(ActivateButtonColor)
-            .clickable(onClick = onActivateClick)
-            .padding(16.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(
-                imageVector = Icons.Default.Menu,
-                contentDescription = "Иконка баллов",
-                tint = Color.White,
-                modifier = Modifier.size(24.dp).padding(end = 8.dp)
-            )
-            Column {
-                Text(
-                    text = "Активировать баллы",
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = Color.White,
-                    fontFamily = Montserrat
-                )
-                Text(
-                    text = "Дополните данные профиля, чтобы использовать\nбаллы",
-                    fontSize = 10.sp,
-                    color = Color(0xFFF5F5F5),
-                    fontFamily = Montserrat
-                )
-            }
-        }
-        Icon(
-            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-            contentDescription = "Перейти",
-            tint = Color.White,
-            modifier = Modifier.size(24.dp)
-        )
     }
 }
 
@@ -623,10 +502,7 @@ fun MenuItemRow(icon: ImageVector, label: String, onClick: () -> Unit) {
             modifier = Modifier.size(24.dp)
         )
         Text(
-            text = label,
-            fontSize = 16.sp,
-            color = DarkText,
-            fontFamily = Montserrat
+            text = label, fontSize = 16.sp, color = DarkText, fontFamily = Montserrat
         )
     }
 }
