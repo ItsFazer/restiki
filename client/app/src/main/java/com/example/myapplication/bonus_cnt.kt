@@ -4,7 +4,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
 object bonus_card {
-    private val _balance = MutableStateFlow(0) // Начальный баланс
+    private val _balance = MutableStateFlow(0)
     val balance: StateFlow<Int> = _balance
 
     fun addPoints(points: Int) {

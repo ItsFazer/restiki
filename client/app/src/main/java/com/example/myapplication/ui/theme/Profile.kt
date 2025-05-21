@@ -24,6 +24,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.ktor.client.*
 import io.ktor.client.engine.okhttp.*
@@ -43,6 +44,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+
 class OrdersViewModel : ViewModel() {
     private val client = HttpClient {
         install(Logging) {
@@ -64,6 +66,33 @@ class OrdersViewModel : ViewModel() {
     private val _orders = MutableStateFlow<List<Order>>(emptyList())
     val orders: StateFlow<List<Order>> = _orders
 
+    // Добавлено для хранения всех блюд
+    private val _allDishes = MutableStateFlow<List<Dish>>(emptyList())
+    val allDishes: StateFlow<List<Dish>> = _allDishes
+
+    init {
+        viewModelScope.launch {
+            fetchAllDishes()
+        }
+    }
+
+    suspend fun fetchAllDishes() {
+        try {
+            val response: HttpResponse = client.get("http://5.167.254.44:6567/dish")
+            if (response.status == HttpStatusCode.OK) {
+                val dishes = response.body<List<Dish>>()
+                _allDishes.value = dishes
+                Log.d("OrdersViewModel", "Fetched all dishes: $dishes")
+            } else {
+                Log.e("OrdersViewModel", "Failed to fetch all dishes: ${response.status}. Body: ${response.bodyAsText()}")
+                _allDishes.value = emptyList()
+            }
+        } catch (e: Exception) {
+            Log.e("OrdersViewModel", "Error fetching all dishes: ${e.message}", e)
+            _allDishes.value = emptyList()
+        }
+    }
+
     suspend fun fetchOrders(user_id: Int) {
         if (user_id == 0) { // Prevent API call with invalid user_id
             Log.e("OrdersViewModel", "Invalid user ID (0). Not fetching orders.")
@@ -77,7 +106,7 @@ class OrdersViewModel : ViewModel() {
                 _orders.value = list
                 Log.d("OrdersViewModel", "Fetched orders: $list")
             } else {
-                Log.e("OrdersViewModel", "Failed to fetch orders: ${response.status}. Body: ${response.bodyAsText()}") // Log response body for debug
+                Log.e("OrdersViewModel", "Failed to fetch orders: ${response.status}. Body: ${response.bodyAsText()}")
                 _orders.value = emptyList() // Clear orders on error
             }
         } catch (e: Exception) {
@@ -141,7 +170,7 @@ data class MenuItemData(
 @Composable
 fun ProfileScreenContent(
     userPreferences: UserPreferences = UserPreferences(LocalContext.current),
-    ordersViewModel: OrdersViewModel = viewModel()
+    ordersViewModel: OrdersViewModel = viewModel() // ViewModel получен здесь
 ) {
     val token by userPreferences.token.collectAsState(initial = null)
     val orders by ordersViewModel.orders.collectAsState()
@@ -161,9 +190,11 @@ fun AuthorizedProfileScreen(
 ) {
     val username by userPreferences.username.collectAsState(initial = "Гость")
     val email by userPreferences.email.collectAsState(initial = "Нет email")
-    val userId by userPreferences.id.collectAsState(initial = 0) // Collects as Int? or Int, handle nullability
+    val userId by userPreferences.id.collectAsState(initial = 0)
     val coroutineScope = rememberCoroutineScope()
     var showOrdersDialog by remember { mutableStateOf(false) }
+
+    val bonus_card = remember { mutableStateOf(bonus_card.balance) }
 
     LazyColumn(
         modifier = Modifier
@@ -183,11 +214,9 @@ fun AuthorizedProfileScreen(
         }
 
         item {
-            val currentBonusPoints by remember { mutableStateOf(0) }
-
             BonusCard(
                 bonusPercentage = "5%",
-                bonusPoints = currentBonusPoints,
+                bonusPoints = bonus_card.value.value,
                 onCashbackButtonClick = {}
             )
         }
@@ -205,13 +234,14 @@ fun AuthorizedProfileScreen(
                 onClick = {
                     if (item.label == "Мои заказы") {
                         coroutineScope.launch {
-                            userId?.let { id ->
+                            val currentUserId = userId
+
+                            currentUserId?.let { id ->
                                 if (id != 0) {
                                     ordersViewModel.fetchOrders(id)
                                     showOrdersDialog = true
                                 } else {
                                     Log.e("AuthorizedProfileScreen", "Cannot fetch orders: User ID is 0, which is likely an unauthenticated or invalid ID.")
-                                    // Consider showing a SnackBar or Toast to the user here.
                                 }
                             } ?: run {
                                 Log.e("AuthorizedProfileScreen", "Cannot fetch orders: User ID is null.")
@@ -226,12 +256,12 @@ fun AuthorizedProfileScreen(
     }
 
     if (showOrdersDialog) {
-        OrdersDialog(orders = orders, onDismiss = { showOrdersDialog = false })
+        OrdersDialog(orders = orders, ordersViewModel = ordersViewModel, onDismiss = { showOrdersDialog = false })
     }
 }
 
 @Composable
-fun OrdersDialog(orders: List<Order>, onDismiss: () -> Unit) {
+fun OrdersDialog(orders: List<Order>, ordersViewModel: OrdersViewModel, onDismiss: () -> Unit) { // Принимаем ordersViewModel
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
@@ -254,7 +284,8 @@ fun OrdersDialog(orders: List<Order>, onDismiss: () -> Unit) {
             } else {
                 LazyColumn {
                     items(orders) { order ->
-                        OrderCard(order = order)
+                        // Передаем ordersViewModel в OrderCard
+                        OrderCard(order = order, ordersViewModel = ordersViewModel)
                         Spacer(modifier = Modifier.height(8.dp))
                     }
                 }
@@ -275,11 +306,15 @@ fun OrdersDialog(orders: List<Order>, onDismiss: () -> Unit) {
 }
 
 @Composable
-fun OrderCard(order: Order) {
+fun OrderCard(order: Order, ordersViewModel: OrdersViewModel) {
+    // Собираем состояние списка всех блюд из OrdersViewModel
+    val allDishes = ordersViewModel.allDishes.collectAsState().value
+
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(8.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        shape = RoundedCornerShape(12.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White)
     ) {
         Column(
             modifier = Modifier.padding(16.dp)
@@ -287,33 +322,94 @@ fun OrderCard(order: Order) {
             Text(
                 text = "Заказ #${order.id}",
                 fontWeight = FontWeight.Bold,
-                fontSize = 18.sp,
-                fontFamily = Montserrat
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = "Дата: ${order.order_data}",
-                fontSize = 14.sp,
-                color = GreyText,
-                fontFamily = Montserrat
-            )
-            Text(
-                text = "Статус: ${order.status}",
-                fontSize = 14.sp,
-                color = GreyText,
+                fontSize = 20.sp,
+                color = DarkText,
                 fontFamily = Montserrat
             )
             Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = "Блюда:",
-                fontWeight = FontWeight.SemiBold,
-                fontSize = 16.sp,
-                fontFamily = Montserrat
-            )
-            order.dishes.forEach { dish ->
+            Divider(color = GreyText.copy(alpha = 0.2f), thickness = 1.dp)
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Text(
-                    text = "  - Dish ID: ${dish.dish_id}, Количество: ${dish.quantity}",
+                    text = "Дата:",
                     fontSize = 14.sp,
+                    color = GreyText,
+                    fontFamily = Montserrat
+                )
+                Text(
+                    text = order.order_data,
+                    fontSize = 14.sp,
+                    color = DarkText,
+                    fontWeight = FontWeight.Medium,
+                    fontFamily = Montserrat
+                )
+            }
+            Spacer(modifier = Modifier.height(4.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Статус:",
+                    fontSize = 14.sp,
+                    color = GreyText,
+                    fontFamily = Montserrat
+                )
+                Text(
+                    text = order.status,
+                    fontSize = 14.sp,
+                    color = DarkText,
+                    fontWeight = FontWeight.Medium,
+                    fontFamily = Montserrat
+                )
+            }
+
+            if (order.dishes.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    text = "Блюда в заказе:",
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 16.sp,
+                    color = DarkText,
+                    fontFamily = Montserrat
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    order.dishes.forEach { orderDish ->
+                        val dish = allDishes.find { it.id == orderDish.dish_id }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Блюдо: ${dish?.name ?: "Неизвестное блюдо"}",
+                                fontSize = 14.sp,
+                                color = DarkText,
+                                fontFamily = Montserrat
+                            )
+                            Text(
+                                text = "Кол-во: ${orderDish.quantity}",
+                                fontSize = 14.sp,
+                                color = DarkText,
+                                fontWeight = FontWeight.Medium,
+                                fontFamily = Montserrat
+                            )
+                        }
+                    }
+                }
+            } else {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "В этом заказе нет блюд.",
+                    fontSize = 14.sp,
+                    color = GreyText,
                     fontFamily = Montserrat
                 )
             }
@@ -411,6 +507,14 @@ fun LoginDialog(userPreferences: UserPreferences, onDismiss: () -> Unit) {
                     ignoreUnknownKeys = true
                 })
             }
+            install(Logging) {
+                logger = object : Logger {
+                    override fun log(message: String) {
+                        Log.d("LoginKtor", message)
+                    }
+                }
+                level = LogLevel.ALL
+            }
         }
     }
 
@@ -458,20 +562,22 @@ fun LoginDialog(userPreferences: UserPreferences, onDismiss: () -> Unit) {
                                 setBody(FormDataContent(requestBody))
                             }
 
-                            val loginResponse: LoginResponse = response.body()
+                            if (response.status == HttpStatusCode.OK) {
+                                val loginResponse: LoginResponse = response.body()
 
-                            userPreferences.saveUserData(
-                                id = loginResponse.user.id,
-                                username = loginResponse.user.username,
-                                email = loginResponse.user.email,
-                                createdAt = "2025-05-21T12:15:00Z",
-                                token = loginResponse.token.access_token
-                            )
-
-                            onDismiss()
+                                userPreferences.saveUserData(
+                                    id = loginResponse.user.id,
+                                    username = loginResponse.user.username,
+                                    email = loginResponse.user.email,
+                                    createdAt = "2025-05-21T12:15:00Z", // Assuming this is a static value for now
+                                    token = loginResponse.token.access_token
+                                )
+                                onDismiss()
+                            } else {
+                                Log.e("LoginDialog", "Login failed: ${response.status}. Body: ${response.bodyAsText()}")
+                            }
                         } catch (e: Exception) {
                             Log.e("LoginDialog", "Error during login: ${e.message}", e)
-                        } finally {
                         }
                     }
                 }
@@ -508,6 +614,14 @@ fun RegisterDialog(userPreferences: UserPreferences, onDismiss: () -> Unit) {
                     isLenient = true
                     ignoreUnknownKeys = true
                 })
+            }
+            install(Logging) { // Добавьте логирование для отладки
+                logger = object : Logger {
+                    override fun log(message: String) {
+                        Log.d("RegisterKtor", message)
+                    }
+                }
+                level = LogLevel.ALL
             }
         }
     }
@@ -558,28 +672,28 @@ fun RegisterDialog(userPreferences: UserPreferences, onDismiss: () -> Unit) {
                                 setBody(requestBody)
                             }
 
+                            if (response.status == HttpStatusCode.OK) {
+                                val registerResponse: RegisterResponse = response.body()
+                                Log.d("RegisterDebug", "Deserialized response: $registerResponse")
 
-                            val registerResponse: RegisterResponse = response.body()
-                            Log.d("RegisterDebug", "Deserialized response: $registerResponse")
+                                userPreferences.saveUserData(
+                                    id = registerResponse.user.id,
+                                    username = registerResponse.user.username,
+                                    email = registerResponse.user.email,
+                                    createdAt = "2025-05-21T12:15:00Z", // Assuming this is a static value for now
+                                    token = registerResponse.token.access_token
+                                )
+                                Log.d(
+                                    "RegisterDebug",
+                                    "id=${registerResponse.user.id}, username=${registerResponse.user.username}, email=${registerResponse.user.email}, token=${registerResponse.token.access_token}"
+                                )
+                                onDismiss()
+                            } else {
+                                Log.e("RegisterDialog", "Registration failed: ${response.status}. Body: ${response.bodyAsText()}")
+                            }
 
-                            userPreferences.saveUserData(
-                                id = registerResponse.user.id,
-                                username = registerResponse.user.username,
-                                email = registerResponse.user.email,
-                                createdAt = "2025-05-21T12:15:00Z", // Assuming this is a static value for now
-                                token = registerResponse.token.access_token
-                            )
-                            Log.d(
-                                "RegisterDebug",
-                                "id=${registerResponse.user.id}, username=${registerResponse.user.username}, email=${registerResponse.user.email}, token=${registerResponse.token.access_token}"
-                            )
-
-                            onDismiss()
                         } catch (e: Exception) {
                             Log.e("RegisterDialog", "Error during registration: ${e.message}", e)
-                            // Optionally show an error message to the user
-                        } finally {
-                            // client.close() // Don't close the client immediately, it can be reused
                         }
                     }
                 }

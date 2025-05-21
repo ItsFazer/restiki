@@ -486,10 +486,10 @@ fun OrdersSummaryCard(
                                 if (token == null) {
                                     showLoginDialog = true
                                 } else {
+                                    bonus_card.addPoints((0.05 * orders.sumOf { it.dishCost.toInt() * it.counter }).toInt())
                                     scope.launch {
                                         val userId = userPreferences.id.firstOrNull()
                                         val tokenValue = userPreferences.token.firstOrNull()
-                                        bonus_card.addPoints((0.05 * orders.sumOf { it.dishCost.toInt() * it.counter }).toInt())
                                             orders.forEachIndexed { index, order ->
                                                 Log.d(
                                                     "OrdersSummaryCard",
@@ -685,7 +685,7 @@ fun DishCard(
     }
 }
 
-class MainMenuViewModel : ViewModel() {
+object MainMenuViewModel : ViewModel() {
     private val _uiState = MutableStateFlow<UiState>(UiState.Loading)
     val uiState: StateFlow<UiState> = _uiState
     private val _hasOrders = MutableStateFlow(false)
@@ -930,17 +930,15 @@ fun MainMenuScreen(viewModel: MainMenuViewModel = viewModel()) {
 
                 Box(
                     modifier = Modifier
-                        .padding(bottom = 16.dp)
-                        .width(300.dp)
+                        .padding(5.dp)
+                        .fillMaxWidth()
                         .height(60.dp)
                         .clip(RoundedCornerShape(12.dp))
                         .background(
-                            brush = Brush.horizontalGradient(
-                                colors = listOf(Color(0xFFFED253), Color(0xFFFEA24F))
-                            )
+                            Color(254,198,113)
                         )
                         .clickable { showOrdersSummary = true }
-                        .padding(horizontal = 16.dp),
+                        .padding(horizontal = 5.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Row(
@@ -966,15 +964,14 @@ fun MainMenuScreen(viewModel: MainMenuViewModel = viewModel()) {
                                     Icon(
                                         imageVector = Icons.Default.ShoppingCart,
                                         contentDescription = "Корзина",
-                                        tint = Color.White,
                                         modifier = Modifier.size(16.dp)
                                     )
                                     Text(
                                         text = "$orderCount",
                                         fontSize = 12.sp,
                                         fontFamily = Montserrat,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color.White
+                                        fontWeight = FontWeight.Normal,
+                                        color = Color.Black
                                     )
                                 }
                             }
@@ -982,16 +979,16 @@ fun MainMenuScreen(viewModel: MainMenuViewModel = viewModel()) {
                                 text = "Корзина",
                                 fontSize = 20.sp,
                                 fontFamily = Montserrat,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.White
+                                fontWeight = FontWeight.Normal,
+                                color = Color.Black
                             )
                         }
                         Text(
                             text = "$totalCost ₽",
                             fontSize = 20.sp,
                             fontFamily = Montserrat,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
+                            fontWeight = FontWeight.Normal,
+                            color = Color.Black
                         )
                     }
                 }
