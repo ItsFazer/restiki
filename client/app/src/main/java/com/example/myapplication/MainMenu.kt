@@ -922,12 +922,11 @@ fun MainMenuScreen(viewModel: MainMenuViewModel = viewModel()) {
     }
 
     Scaffold(
-        floatingActionButton = {
+        floatingActionButton  = {
             if (hasOrders) {
                 val orders = viewModel.orders.collectAsState().value
                 val totalCost = orders.sumOf { it.dishCost.toInt() * it.counter }
                 val orderCount = orders.size
-
 
                 Box(
                     modifier = Modifier
