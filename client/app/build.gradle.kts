@@ -82,5 +82,6 @@ dependencies {
     implementation(libs.ktor.client.core)
     implementation(libs.sqldelight.android)
     implementation(libs.sqldelight.coroutines)
+    implementation(libs.datastore.preferences)
     implementation("app.cash.sqldelight:android-driver:2.1.0")
 }

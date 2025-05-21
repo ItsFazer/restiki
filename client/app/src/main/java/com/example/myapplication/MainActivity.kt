@@ -50,6 +50,7 @@ val Montserrat = FontFamily(
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
+
         super.onCreate(savedInstanceState)
         this.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT) // разрешаю вам использовать приложение в вертикальном положении
         setContent {

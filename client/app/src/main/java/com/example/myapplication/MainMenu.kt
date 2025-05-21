@@ -403,7 +403,7 @@ fun OrdersSummaryCard(
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 modifier = Modifier.fillMaxWidth()
                             ) {
-                                Spacer(modifier = Modifier.weight(1f)) // Пустое место вместо стоимости
+                                Spacer(modifier = Modifier.weight(1f))
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -773,7 +773,7 @@ fun MainMenuScreen(viewModel: MainMenuViewModel = viewModel()) {
     val showDishDetailSheet by remember { derivedStateOf { selectedDish != null } }
     val uiState by viewModel.uiState.collectAsState()
     val hasOrders by viewModel.hasOrders.collectAsState()
-    val context = LocalContext.current
+    val context = LocalContext.current.applicationContext
 
     LaunchedEffect(Unit) {
         viewModel.initializeDatabase(context)
