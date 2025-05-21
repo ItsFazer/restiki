@@ -389,10 +389,11 @@ fun OrderCard(order: Order, ordersViewModel: OrdersViewModel) {
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = "Блюдо: ${dish?.name ?: "Неизвестное блюдо"}",
+                                text = "${dish?.name ?: "Неизвестное блюдо"}",
                                 fontSize = 14.sp,
                                 color = DarkText,
-                                fontFamily = Montserrat
+                                fontFamily = Montserrat,
+                                modifier = Modifier.fillMaxWidth(0.6f)
                             )
                             Text(
                                 text = "Кол-во: ${orderDish.quantity}",
@@ -402,6 +403,11 @@ fun OrderCard(order: Order, ordersViewModel: OrdersViewModel) {
                                 fontFamily = Montserrat
                             )
                         }
+                        Divider(
+                            color = Color.Gray,
+                            thickness = 1.dp,
+                            modifier = Modifier.padding(vertical = 8.dp)
+                        )
                     }
                 }
             } else {

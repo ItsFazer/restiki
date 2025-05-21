@@ -931,7 +931,7 @@ fun MainMenuScreen(viewModel: MainMenuViewModel = viewModel()) {
                 Box(
                     modifier = Modifier
                         .padding(5.dp)
-                        .fillMaxWidth()
+                        .fillMaxWidth(0.8f)
                         .height(60.dp)
                         .clip(RoundedCornerShape(12.dp))
                         .background(
@@ -952,23 +952,26 @@ fun MainMenuScreen(viewModel: MainMenuViewModel = viewModel()) {
                         ) {
                             Box(
                                 modifier = Modifier
-                                    .size(24.dp)
-                                    .clip(RoundedCornerShape(4.dp))
-                                    .background(Color.White.copy(alpha = 0.2f)),
+                                    .size(50.dp)
+                                    .clip(RoundedCornerShape(4.dp)),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.Center
+                                    horizontalArrangement = Arrangement.Center,
+                                    modifier = Modifier
+                                        .background(
+                                            Color(254,198,113)
+                                        )
                                 ) {
                                     Icon(
                                         imageVector = Icons.Default.ShoppingCart,
                                         contentDescription = "Корзина",
-                                        modifier = Modifier.size(16.dp)
+                                        modifier = Modifier.size(30.dp).padding(start = 10.dp)
                                     )
                                     Text(
                                         text = "$orderCount",
-                                        fontSize = 12.sp,
+                                        fontSize = 20.sp,
                                         fontFamily = Montserrat,
                                         fontWeight = FontWeight.Normal,
                                         color = Color.Black
