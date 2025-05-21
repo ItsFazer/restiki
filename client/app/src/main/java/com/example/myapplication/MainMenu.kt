@@ -928,6 +928,7 @@ fun MainMenuScreen(viewModel: MainMenuViewModel = viewModel()) {
                 val totalCost = orders.sumOf { it.dishCost.toInt() * it.counter }
                 val orderCount = orders.size
 
+
                 Box(
                     modifier = Modifier
                         .padding(5.dp)
@@ -998,13 +999,13 @@ fun MainMenuScreen(viewModel: MainMenuViewModel = viewModel()) {
             }
         },
         floatingActionButtonPosition = FabPosition.Center
-    ) { paddingValues ->
+    ) { _ ->
         LazyVerticalGrid(
             columns = GridCells.Fixed(2),
             modifier = Modifier
                 .fillMaxSize()
                 .background(Color(255, 255, 255))
-                .padding(paddingValues),
+                .padding(),
             horizontalArrangement = Arrangement.spacedBy(0.dp),
             verticalArrangement = Arrangement.spacedBy(0.dp),
             contentPadding = PaddingValues(
