@@ -26,6 +26,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -46,10 +47,16 @@ import io.ktor.client.plugins.logging.LogLevel
 import io.ktor.client.plugins.logging.Logger
 import io.ktor.client.plugins.logging.Logging
 import io.ktor.client.request.get
+import io.ktor.client.request.post
+import io.ktor.client.request.setBody
+import io.ktor.client.request.header
 import io.ktor.client.statement.HttpResponse
+import io.ktor.http.ContentType
+import io.ktor.http.contentType
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerializationException
@@ -76,7 +83,28 @@ data class Dish(
     val img: String?
 )
 
-// Состояния интерфейса
+@Serializable
+data class OrderDish(
+    val dish_id: Long,
+    val quantity: Long
+)
+
+@Serializable
+data class OrderRequest(
+    val user_id: Long,
+    val dishes: List<OrderDish>,
+    val status: String = "pending"
+)
+
+@Serializable
+data class OrderResponse(
+    val id: Long,
+    val user_id: Long,
+    val order_date: String,
+    val status: String,
+    val dishes: List<OrderDish>
+)
+
 sealed class UiState {
     object Loading : UiState()
     data class Success(val dishes: List<Dish>) : UiState()
@@ -207,12 +235,18 @@ fun DishDetailCard(
 @Composable
 fun OrdersSummaryCard(
     onDismiss: () -> Unit,
-    viewModel: MainMenuViewModel
+    viewModel: MainMenuViewModel,
+    uiState: UiState
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val scope = rememberCoroutineScope()
     val orders by viewModel.orders.collectAsState()
     val utensilsCount by viewModel.utensilsCount.collectAsState()
+    val context = LocalContext.current
+    val userPreferences = remember { UserPreferences(context) }
+    val token by userPreferences.token.collectAsState(initial = null)
+    var showLoginDialog by remember { mutableStateOf(false) }
+
     val bonusBalance: StateFlow<Int> = bonus_card.balance
     ModalBottomSheet(
         sheetState = sheetState,
@@ -268,7 +302,6 @@ fun OrdersSummaryCard(
                             .fillMaxWidth()
                             .heightIn(max = 300.dp)
                     ) {
-                        // Секция для блюд
                         if (orders.isNotEmpty()) {
                             item {
                                 Text(
@@ -449,7 +482,36 @@ fun OrdersSummaryCard(
                     ) {
                         Button(
                             onClick = {
-                                bonus_card.addPoints((orders.sumOf { it.dishCost.toInt() * it.counter } * 0.05).toInt())
+                                if (token == null) {
+                                    showLoginDialog = true
+                                } else {
+                                    scope.launch {
+                                        val userId = userPreferences.userId.firstOrNull()
+                                        val tokenValue = userPreferences.token.firstOrNull()
+
+                                            orders.forEachIndexed { index, order ->
+                                                Log.d(
+                                                    "OrdersSummaryCard",
+                                                    "Dish ${index + 1}: ${order.dishName} (${order.dishPortion} г, ${order.dishCost} ₽, Quantity: ${order.counter})"
+                                                )
+                                            }
+
+                                            if (userId != null && tokenValue != null) {
+                                                val orderRequest = OrderRequest(
+                                                    user_id = userId.toLong(),
+                                                    dishes = orders.map { order ->
+                                                        OrderDish(
+                                                            dish_id = order.dishId,
+                                                            quantity = order.counter
+                                                        )
+                                                    },
+                                                    status = "pending"
+                                                )
+                                                viewModel.submitOrder(orderRequest, tokenValue, onDismiss)
+                                            }
+
+                                    }
+                                }
                             },
                             modifier = Modifier
                                 .weight(1f)
@@ -465,11 +527,57 @@ fun OrdersSummaryCard(
                         }
                     }
                 }
-
             }
-
         }
     )
+
+    if (showLoginDialog) {
+        AlertDialog(
+            onDismissRequest = { showLoginDialog = false },
+            title = {
+                Text(
+                    text = "Вход требуется",
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF333333),
+                    fontFamily = Montserrat
+                )
+            },
+            text = {
+                Text(
+                    text = "Пожалуйста, войдите или зарегистрируйтесь, чтобы оформить заказ.",
+                    fontSize = 16.sp,
+                    color = Color(0xFF757575),
+                    fontFamily = Montserrat,
+                    textAlign = TextAlign.Center
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = { showLoginDialog = false },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFE8C65)),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text(
+                        text = "Войти",
+                        color = Color.White,
+                        fontFamily = Montserrat
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showLoginDialog = false }) {
+                    Text(
+                        text = "Отмена",
+                        color = Color(0xFF757575),
+                        fontFamily = Montserrat
+                    )
+                }
+            },
+            containerColor = Color.White,
+            shape = RoundedCornerShape(12.dp)
+        )
+    }
 }
 
 @Composable
@@ -614,7 +722,6 @@ class MainMenuViewModel : ViewModel() {
         viewModelScope.launch {
             try {
                 orderQueries.deleteAllOrders()
-                // Сбрасываем количество приборов до 0
                 _utensilsCount.value = 0
                 Log.d("MainMenuViewModel", "База данных заказов очищена, приборы сброшены")
                 _orders.value = emptyList()
@@ -636,15 +743,6 @@ class MainMenuViewModel : ViewModel() {
             }
         }
     }
-
-//    fun getAllOrders(): List<Orders> {
-//        return try {
-//            orderQueries.selectAllOrders().executeAsList()
-//        } catch (e: Exception) {
-//            Log.e("MainMenuViewModel", "Ошибка при получении заказов: ${e.message}", e)
-//            emptyList()
-//        }
-//    }
 
     fun fetchDishes() {
         viewModelScope.launch {
@@ -712,6 +810,47 @@ class MainMenuViewModel : ViewModel() {
                 checkOrders()
             } catch (e: Exception) {
                 Log.e("MainMenuViewModel", "Ошибка при работе с базой данных: ${e.message}", e)
+            }
+        }
+    }
+
+    fun submitOrder(orderRequest: OrderRequest, token: String, onDismiss: () -> Unit) {
+        viewModelScope.launch {
+            try {
+                val response: HttpResponse = client.post("http://5.167.254.44:6567/order") {
+                    contentType(ContentType.Application.Json)
+                    header("Authorization", "Bearer $token")
+                    setBody(orderRequest)
+                }
+                if (response.status.value == 200) {
+                    val orderResponse: OrderResponse = response.body()
+                    Log.d("OrdersSummaryCard", "Order submitted successfully:")
+                    Log.d("OrdersSummaryCard", "Order ID: ${orderResponse.id}")
+                    Log.d("OrdersSummaryCard", "User ID: ${orderResponse.user_id}")
+                    Log.d("OrdersSummaryCard", "Order Date: ${orderResponse.order_date}")
+                    Log.d("OrdersSummaryCard", "Status: ${orderResponse.status}")
+                    Log.d("OrdersSummaryCard", "Dishes:")
+                    orderResponse.dishes.forEachIndexed { index, dish ->
+                        Log.d(
+                            "OrdersSummaryCard",
+                            "Dish ${index + 1}: ID ${dish.dish_id}, Quantity: ${dish.quantity}"
+                        )
+                    }
+                    clearDatabase()
+                    onDismiss()
+                } else {
+                    val errorBody = response.body<String>()
+                    Log.e(
+                        "OrdersSummaryCard",
+                        "Ошибка при отправке заказа: ${response.status.value}, Тело ответа: $errorBody"
+                    )
+                }
+            } catch (e: SerializationException) {
+                Log.e("OrdersSummaryCard", "Ошибка десериализации ответа: ${e.message}", e)
+            } catch (e: IOException) {
+                Log.e("OrdersSummaryCard", "Сетевая ошибка при отправке заказа: ${e.message}", e)
+            } catch (e: Exception) {
+                Log.e("OrdersSummaryCard", "Неизвестная ошибка при отправке заказа: ${e.message}", e)
             }
         }
     }
@@ -989,7 +1128,8 @@ fun MainMenuScreen(viewModel: MainMenuViewModel = viewModel()) {
     if (showOrdersSummary) {
         OrdersSummaryCard(
             onDismiss = { showOrdersSummary = false },
-            viewModel = viewModel
+            viewModel = viewModel,
+            uiState = uiState
         )
     }
 }

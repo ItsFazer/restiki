@@ -64,7 +64,7 @@ data class LoginResponse(
     val user: LoginUser, val token: Token
 )
 
-// Цвета и стили
+
 val BonusCardGradientStart = Color(0xFFFED253)
 val ActivateButtonColor = Color(0xFFFE8C65)
 val GreyText = Color(0xFF757575)
@@ -99,9 +99,9 @@ fun AuthorizedProfileScreen(userPreferences: UserPreferences) {
         item { Spacer(modifier = Modifier.height(16.dp)) }
 
         item {
-            ProfileHeader(name = username.value ?: "Гость",
-                phone = email.value ?: "Нет email",
-                onNotificationClick = { /* TODO: обработка клика по колокольчику */ })
+            ProfileHeader(name = username.value.toString(),
+                phone = email.value.toString(),
+                onNotificationClick = {})
         }
 
         item {
@@ -109,7 +109,7 @@ fun AuthorizedProfileScreen(userPreferences: UserPreferences) {
 
             BonusCard(bonusPercentage = "5%",
                 bonusPoints = currentBonusPoints,
-                onCashbackButtonClick = { /* TODO: обработка клика по кнопке Кэшбэк */ })
+                onCashbackButtonClick = {})
         }
 
 
